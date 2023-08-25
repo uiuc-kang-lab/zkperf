@@ -1,4 +1,4 @@
-// ****Experimenting. Trying to add a choice for selecting Prime Field of choice*** 
+// ****Experimenting. Trying to add a choice for selecting Prime Field of interest*** 
 
 
 // Reference: https://github.com/summa-dev/summa-solvency/blob/90c4242840b04122e699d07c009f4e233a223663/zk_prover/src/chips/poseidon/poseidon_spec.rs

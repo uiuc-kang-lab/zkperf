@@ -1,28 +1,27 @@
 use std::vec;
 use rand::Rng;
-use halo2_proofs::halo2curves::ff::PrimeField;
+use halo2_proofs::halo2curves::pasta::Fp;
 
-pub fn to_field<F: PrimeField> (leaves: Vec<i32>) -> Vec<F>
+pub fn to_field (val: i32) -> Fp
 {
-    let mut leaves_field = vec![];
-    for i in 0..leaves.len(){
-        if leaves[i] >= 0  {
-            leaves_field.push(F::from(leaves[i] as u64));
-        }
-        else {
-            leaves_field.push(-F::from(leaves[i] as u64));
-        }
+    let val_field: Fp;
+    if val >= 0{
+        val_field = Fp::from(val as u64);
     }
-    return leaves_field;
+    else{
+        val_field = -Fp::from(val as u64);
+    }    
+    return val_field;
 }
 
 
 // Just for the purpose of development of codebase
-pub fn create_random_data<F: PrimeField>(mut n: usize) -> Vec<F> 
+pub fn create_random_data(mut n: usize) -> Vec<i32> 
 {    
     let mut rng = rand::thread_rng();
+    
     if n.is_power_of_two(){
-        n = n.next_power_of_two();
+        n = n.next_power_of_two(); 
     }
 
     let mut leaves: Vec<i32> = vec![];
@@ -30,17 +29,9 @@ pub fn create_random_data<F: PrimeField>(mut n: usize) -> Vec<F>
         let buf:i32 = rng.gen();
         leaves.push(buf);
     } 
-    return to_field(leaves);
+    return leaves;
 }
 
-
-
-
-// For a case where data is being imported from outside
-// Need to figure this out
-// pub fn load_data(){ 
-    
-// }
 
 #[cfg(test)]
 mod tests {
@@ -49,13 +40,16 @@ mod tests {
 
 
     #[test]
-    fn test_field_converter() {
+    fn test_field_converter() 
+    {
         let example_leaves = [13,2,3,4,6].to_vec();
-        let mut example_leaves_filed = vec![];
+        let mut example_leaves_field = vec![];
+        let mut example_leaves_field_func = vec![];
         for i in 0..example_leaves.len(){
-            example_leaves_filed.push(Fp::from(example_leaves[i] as u64));
+            example_leaves_field.push(Fp::from(example_leaves[i].clone() as u64));
+            example_leaves_field_func.push(to_field(example_leaves[i]))
         }
-        assert_eq!(example_leaves_filed, to_field(example_leaves));
+        assert_eq!(example_leaves_field, example_leaves_field_func);
 
     }
 }

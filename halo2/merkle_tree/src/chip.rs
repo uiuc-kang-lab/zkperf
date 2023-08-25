@@ -1,17 +1,7 @@
 use halo2_gadgets::poseidon::primitives::P128Pow5T3;
-use halo2_proofs::{
-    arithmetic::Field,
-    circuit::*,
-    dev::cost::*, // Trying for the first time
-    plonk::*,
-    poly::Rotation,
-    transcript::{Blake2bRead, Blake2bWrite, TranscriptReadBuffer, TranscriptWriterBuffer, Challenge255}, halo2curves::ff::PrimeField
-};
-
-use halo2_proofs::halo2curves::pasta::Fp;
+use halo2_proofs::{circuit::*, plonk::*,poly::Rotation, halo2curves::pasta::Fp};
 
 use crate::hash::poseidon::{PoseidonConfig, PoseidonChip};
-
 
 #[derive(Debug, Clone)]
 pub struct MerkleTreeConfig{
@@ -19,7 +9,6 @@ pub struct MerkleTreeConfig{
     pub left: Column<Advice>,
     pub right: Column<Advice>,
     pub orientation: Column<Advice>,
-    pub s_bool: Selector,
     pub s_swap: Selector,
     pub hash_config: PoseidonConfig<3,2,2>,
 }
@@ -29,9 +18,9 @@ pub struct MerkleTreeChip{
     config: MerkleTreeConfig,
 }
  
-impl MerkleTreeChip {    
-    
-    pub fn construct(config: MerkleTreeConfig) -> MerkleTreeChip{
+impl MerkleTreeChip{        
+    pub fn construct(config: MerkleTreeConfig) -> MerkleTreeChip
+    {
         MerkleTreeChip{
             config,
         }
@@ -43,8 +32,9 @@ impl MerkleTreeChip {
         let left = meta.advice_column();
         let right = meta.advice_column();
         let orientation = meta.advice_column();
-
-        let s_bool = meta.selector();
+        meta.enable_equality(public_input);
+        meta.enable_equality(left);
+        meta.enable_equality(right);
         let s_swap = meta.selector();
 
         // Reference: https://github.com/summa-dev/summa-solvency/blob/master/zk_prover/src/chips/merkle_sum_tree.rs
@@ -53,7 +43,7 @@ impl MerkleTreeChip {
         // Gate1: Check if orientation is boolean
         meta.create_gate("Boolean Orientation", |meta|
         {
-            let s = meta.query_selector(s_bool);
+            let s = meta.query_selector(s_swap);
             let orientation = meta.query_advice(orientation, Rotation::cur());
             vec![s*orientation.clone()*(Expression::Constant(Fp::from(1)) - orientation)]
         });
@@ -72,26 +62,58 @@ impl MerkleTreeChip {
             s* ((orientation* Expression::Constant(Fp::from(2))* (r.clone() - l.clone()) - (l_next - l)) - (r - r_next));
             vec![check]
         });
+
         MerkleTreeConfig{
             public_input,
             left,
             right,
             orientation,
-            s_bool,
             s_swap,
             hash_config: PoseidonChip::<P128Pow5T3,3,2,2>::configure(meta),  
         }
     }
 
-    pub fn load_first_row(){
+    pub fn load_leaf(&self,leaf: Fp, mut layouter: impl Layouter<Fp>) -> Result<AssignedCell<Fp, Fp>, Error>
+    {
+        layouter.assign_region(|| "load leaf",|mut region| 
+            {
+                region.assign_advice_from_constant(|| "leaf",self.config.left,0,leaf)
+            },
+        )
 
     }
 
-    pub fn load_the_rest(){
+    pub fn load(&self,mut layouter: impl Layouter<Fp>, digest: &AssignedCell<Fp, Fp>, element:Fp, orientation: Fp, offset: usize) -> AssignedCell<Fp, Fp>
+    {
+        let (l,r) = layouter.assign_region(|| "load row", |mut region|{
+            digest.copy_advice(|| "left", &mut region, self.config.left, offset)?;
+            region.assign_advice(|| "right", self.config.right, offset, || Value::known(element))?;
+            region.assign_advice(|| "orientation", self.config.orientation, offset, || Value::known(orientation))?;
+            self.config.s_swap.enable(&mut region, offset)?;
 
+            let left: Value<Fp>;
+            let right: Value<Fp>;
+            if orientation == Fp::from(0){
+                 left = digest.value().map(|x| x.to_owned());
+                 right = Value::known(element);   
+            }
+            else{
+                 right = digest.value().map(|x| x.to_owned());
+                 left = Value::known(element);
+            }
+            let left_cell = region.assign_advice(||"swapped left", self.config.left, offset+1, || left)?;
+            let right_cell = region.assign_advice(||"swapped right", self.config.right, offset+1, || right)?;
+            Ok((left_cell,right_cell))
+            }).unwrap();
+        
+        let poseidon_chip = PoseidonChip::<P128Pow5T3, 3, 2, 2>::construct(self.config.hash_config.clone());
+        let digest = poseidon_chip.hash(layouter.namespace(|| "poseidon"), &[l, r]).unwrap();
+        digest
     }
-    pub fn expose_public(){
-
+    
+    pub fn expose_public(&self, mut layouter: impl Layouter<Fp>,assg_cell: &AssignedCell<Fp, Fp>, row: usize,) -> Result<(), Error> 
+    {
+        layouter.constrain_instance(assg_cell.cell(), self.config.public_input, row)
     }
 
 }
