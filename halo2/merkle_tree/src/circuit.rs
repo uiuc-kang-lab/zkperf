@@ -1,13 +1,22 @@
 use halo2_proofs::{
     circuit::*,
     // dev::cost::*, // TODO: Try this
-    halo2curves::pasta::Fp,
+    halo2curves::pasta::{Fp,EqAffine},
     plonk::*,
+    poly::{commitment::ParamsProver,
+        ipa::{commitment::{IPACommitmentScheme, ParamsIPA},
+            multiopen::{ProverIPA, VerifierIPA},
+            strategy::AccumulatorStrategy,},
+        VerificationStrategy,
+    },
+    transcript::{Blake2bRead, Blake2bWrite, Challenge255, TranscriptReadBuffer, TranscriptWriterBuffer},
 };
+use rand::rngs::OsRng;
+use std::time::Instant;
 
 use crate::chip::*;
 
-#[derive(Default)]  
+#[derive(Default, Clone)]  
 pub struct MerkleTreeCircuit{
     leaf: Fp,
     elements: Vec<Fp>,
@@ -38,6 +47,58 @@ impl Circuit<Fp> for MerkleTreeCircuit{
         merklechip.expose_public(layouter.namespace(|| "digest"), &digest, 1)
     }
 }
+
+pub fn real_prover(circuit: MerkleTreeCircuit, public_input: &[&[halo2_proofs::halo2curves::pasta::Fp]]){
+    let k = 10;
+    let params = ParamsIPA::<EqAffine>::new(k);
+    
+    let vk_time_start = Instant::now();
+    let vk = keygen_vk(&params, &circuit).unwrap();
+    let vk_time = vk_time_start.elapsed();
+    
+    let pk_time_start = Instant::now();
+    let pk = keygen_pk(&params, vk, &circuit).unwrap();
+    let pk_time = pk_time_start.elapsed();
+
+    let proof_time_start = Instant::now();
+    let proof = {
+        let mut transcript = Blake2bWrite::<_, _, Challenge255<_>>::init(vec![]);
+        create_proof::<IPACommitmentScheme<EqAffine>, ProverIPA<EqAffine>, _, _, _, _>(
+                        &params,
+                        &pk,
+                        &[circuit],
+                        &[public_input],
+                        OsRng,
+                        &mut transcript,
+        ).expect("Proof Gen Failed");
+        transcript.finalize()
+    };
+    let proof_time = proof_time_start.elapsed();
+
+    let verify_time_start = Instant::now();
+    let strategy = AccumulatorStrategy::new(&params);
+    let mut transcript = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
+
+    let res = verify_proof::<IPACommitmentScheme<EqAffine>, VerifierIPA<EqAffine>, _, _, _>(
+            &params,
+            pk.get_vk(),
+            strategy,
+            &[public_input],
+            &mut transcript,
+    ).map(|strategy| strategy.finalize()).unwrap();
+    let verify_time = verify_time_start.elapsed();
+
+    if !res{
+       panic!("Verification Failed");
+    }
+
+    println!("Time to generate vk {:?}", vk_time);
+    println!("Time to generate pk {:?}", pk_time);
+    println!("Prover Time {:?}", proof_time);
+    println!("Verifier Time {:?}", verify_time);
+    
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -91,16 +152,23 @@ mod tests {
             elements: input.elements,
             orientation: input.orientation,
         };
-        // completeness
+
         let pub_input = vec![input.leaf, input.digest];
+        // let pub_input = vec![input.leaf, Fp::zero()];
+
+        let input_real_prover = [&pub_input[..], &pub_input[..]];
+        real_prover(circuit.clone(), &input_real_prover);
+        
+        // completeness
+        let pub_input_mock = vec![input.leaf, input.digest];
         let prover = MockProver::run(10, &circuit,
-            vec![pub_input.clone(), pub_input]).unwrap();
+            vec![pub_input_mock.clone(), pub_input_mock]).unwrap();
         prover.assert_satisfied();
     
         // soundness
-        let pub_input = vec![input.leaf, Fp::zero()];
+        let pub_input_mock = vec![input.leaf, Fp::zero()];
         let _prover2 = MockProver::run(10, &circuit,
-            vec![pub_input.clone(), pub_input]).unwrap();
+            vec![pub_input_mock.clone(), pub_input_mock]).unwrap();
         // _prover2.assert_satisfied(); // Test should fail if uncommented
     }
 

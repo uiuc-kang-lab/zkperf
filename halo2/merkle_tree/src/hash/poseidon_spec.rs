@@ -9,14 +9,14 @@
 use crate::hash::poseidon_params;
 use halo2_gadgets::poseidon::primitives::*;
 use halo2_proofs::arithmetic::Field;
-use halo2_proofs::halo2curves::bn256::Fr as Fp;
+use halo2_proofs::halo2curves::bn256::Fr;
 
 #[derive(Debug, Clone, Copy)]
 pub struct PoseidonSpec;
 
-pub(crate) type Mds<Fp, const T: usize> = [[Fp; T]; T];
+pub(crate) type Mds<Fr, const T: usize> = [[Fr; T]; T];
 
-impl Spec<Fp, 2, 1> for PoseidonSpec {
+impl Spec<Fr, 2, 1> for PoseidonSpec {
     fn full_rounds() -> usize {
         8
     }
@@ -25,7 +25,7 @@ impl Spec<Fp, 2, 1> for PoseidonSpec {
         56
     }
 
-    fn sbox(val: Fp) -> Fp {
+    fn sbox(val: Fr) -> Fr {
         val.pow_vartime([5])
     }
 
@@ -33,7 +33,7 @@ impl Spec<Fp, 2, 1> for PoseidonSpec {
         unimplemented!()
     }
 
-    fn constants() -> (Vec<[Fp; 2]>, Mds<Fp, 2>, Mds<Fp, 2>) {
+    fn constants() -> (Vec<[Fr; 2]>, Mds<Fr, 2>, Mds<Fr, 2>) {
         (
             poseidon_params::ROUND_CONSTANTS[..].to_vec(),
             poseidon_params::MDS,
