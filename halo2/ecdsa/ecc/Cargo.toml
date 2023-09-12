@@ -1,0 +1,21 @@
+[package]
+name = "ecc"
+version = "0.1.0"
+authors = ["kilic <kiliconu@itu.edu.tr>"]
+edition = "2021"
+
+[dependencies]
+integer = { path = "../integer", default-features = false }
+num-bigint = { version = "0.4", features = ["rand"] }
+num-integer = "0.1"
+num-traits = "0.2"
+rand = "0.8"
+subtle = { version = "2.3", default-features = false }
+
+[dev-dependencies]
+rand_core = { version = "0.6", default-features = false }
+paste = "1.0.7"
+
+[features]
+default = []
+circuit-params = ["integer/circuit-params"]

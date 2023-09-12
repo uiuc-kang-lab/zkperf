@@ -1,0 +1,8 @@
+[workspace]
+members = [
+  "maingate",
+  "integer",
+  "ecc",
+  "ecdsa",
+  "halo2wrong",
+]
