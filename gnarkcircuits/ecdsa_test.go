@@ -21,12 +21,13 @@ import (
 
 func TestECDSA(t *testing.T) {
 	assert := test.NewAssert(t)
-	exp_len := []int{10, 100, 1000}
+	exp_len := []int{10, 10000, 1000000}
 	for l := 0; l < len(exp_len); l++ {
 		secret_key, e := ecdsa.GenerateKey(rand.Reader)
 		assert.NoError(e)
 
 		m := make([]byte, exp_len[l])
+		fmt.Println("Message length: ", len(m))
 		_, er := rand.Read(m)
 		assert.NoError(er)
 
@@ -80,6 +81,7 @@ func TestECDSA(t *testing.T) {
 		fmt.Println("Prover time: ", prover_time)
 		fmt.Println("Verifier time: ", verifier_time)
 		fmt.Println("Proof size: ", proof_size, "B")
+		fmt.Println("Proof:", proof)
 		var mem runtime.MemStats
 		runtime.ReadMemStats(&mem)
 		fmt.Println("Memory usage: ", mem.Sys/1024, "KB")
