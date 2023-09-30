@@ -21,12 +21,16 @@ import (
 
 func TestECDSA(t *testing.T) {
 	assert := test.NewAssert(t)
-	exp_len := []int{10, 10000, 1000000}
-	for l := 0; l < len(exp_len); l++ {
+	NumConstraints := 0
+	mean_prover_time := 0
+	mean_verifier_time := 0
+	mean_proof_size := 0
+	mean_mem := 0
+	for l := 0; l < 5; l++ {
 		secret_key, e := ecdsa.GenerateKey(rand.Reader)
 		assert.NoError(e)
 
-		m := make([]byte, exp_len[l])
+		m := make([]byte, 2^8)
 		fmt.Println("Message length: ", len(m))
 		_, er := rand.Read(m)
 		assert.NoError(er)
@@ -70,23 +74,30 @@ func TestECDSA(t *testing.T) {
 		pK, vK, _ := plonk.Setup(cs, srs)
 		prover_start := time.Now()
 		proof, _ := plonk.Prove(cs, pK, wtns)
-		prover_time := time.Since(prover_start)
+		prover_time := time.Since(prover_start).Microseconds()
 		ser_proof := new(bytes.Buffer)
 		proof.WriteTo(ser_proof)
 		proof_size := ser_proof.Len()
 		pubwtns, _ := wtns.Public()
 		verifier_start := time.Now()
 		err := plonk.Verify(proof, vK, pubwtns)
-		verifier_time := time.Since(verifier_start)
+		verifier_time := time.Since(verifier_start).Microseconds()
 		assert.Equal(err, nil)
-		fmt.Println("Number of constraints: ", cs.GetNbConstraints())
-		fmt.Println("Prover time: ", prover_time)
-		fmt.Println("Verifier time: ", verifier_time)
-		fmt.Println("Proof size: ", proof_size, "B")
+		NumConstraints = cs.GetNbConstraints()
 		var mem runtime.MemStats
 		runtime.ReadMemStats(&mem)
-		fmt.Println("Memory usage: ", mem.Sys/1024, "KB")
+		memUsage := int(mem.Sys / 1024)
+		mean_prover_time += int(prover_time)
+		mean_verifier_time += int(verifier_time)
+		mean_proof_size += proof_size
+		mean_mem += memUsage
 	}
+	fmt.Println("Number of path elements: ", 2^8)
+	fmt.Println("Number of constraints: ", NumConstraints)
+	fmt.Println("Prover time: ", mean_prover_time/5, "µs")
+	fmt.Println("Verifier time: ", mean_verifier_time/5, "µs")
+	fmt.Println("Proof size: ", mean_proof_size/5, "B")
+	fmt.Println("Memory usage: ", mean_mem/5, "KB")
 
 	// assert.ProverSucceeded(circuit, witness, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }
