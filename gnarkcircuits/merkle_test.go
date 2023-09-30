@@ -112,10 +112,10 @@ func TestMerkle(t *testing.T) {
 		}
 		fmt.Println("Number of path elements: ", exp_len[l])
 		fmt.Println("Number of constraints: ", results[0]["NumConstraints"])
-		fmt.Println("Prover time: ", mean_prover_time, "µs")
-		fmt.Println("Verifier time: ", mean_verifier_time, "µs")
-		fmt.Println("Proof size: ", mean_proof_size, "B")
-		fmt.Println("Memory usage: ", mean_memory_usage, "KB")
+		fmt.Println("Prover time: ", mean_prover_time/5, "µs")
+		fmt.Println("Verifier time: ", mean_verifier_time/5, "µs")
+		fmt.Println("Proof size: ", mean_proof_size/5, "B")
+		fmt.Println("Memory usage: ", mean_memory_usage/5, "KB")
 	}
 	// assert.ProverSucceeded(circuit, witness, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }
