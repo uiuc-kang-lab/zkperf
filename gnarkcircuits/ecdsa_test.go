@@ -1,10 +1,10 @@
 package gnarkcircuits
 
 import (
+	"bytes"
 	"crypto/rand"
 	"fmt"
 	"math/big"
-	"reflect"
 	"runtime"
 	"testing"
 	"time"
@@ -71,7 +71,9 @@ func TestECDSA(t *testing.T) {
 		prover_start := time.Now()
 		proof, _ := plonk.Prove(cs, pK, wtns)
 		prover_time := time.Since(prover_start)
-		proof_size := reflect.TypeOf(proof).Size()
+		ser_proof := new(bytes.Buffer)
+		proof.WriteTo(ser_proof)
+		proof_size := ser_proof.Len()
 		pubwtns, _ := wtns.Public()
 		verifier_start := time.Now()
 		err := plonk.Verify(proof, vK, pubwtns)
@@ -81,7 +83,6 @@ func TestECDSA(t *testing.T) {
 		fmt.Println("Prover time: ", prover_time)
 		fmt.Println("Verifier time: ", verifier_time)
 		fmt.Println("Proof size: ", proof_size, "B")
-		fmt.Println("Proof:", proof)
 		var mem runtime.MemStats
 		runtime.ReadMemStats(&mem)
 		fmt.Println("Memory usage: ", mem.Sys/1024, "KB")
