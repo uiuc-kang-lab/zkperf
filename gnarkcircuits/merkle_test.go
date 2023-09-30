@@ -3,11 +3,8 @@ package gnarkcircuits
 import (
 	"bytes"
 	"crypto/rand"
-	"encoding/csv"
 	"fmt"
-	"log"
 	"math"
-	"os"
 	"runtime"
 	"testing"
 	"time"
@@ -23,10 +20,17 @@ import (
 
 func TestMerkle(t *testing.T) {
 	assert := test.NewAssert(t)
+
 	exp_len := []int{2, int(math.Pow(2, 3)), int(math.Pow(2, 6)), int(math.Pow(2, 10))}
 	for l := 0; l < len(exp_len); l++ {
+		fmt.Println("Checkpoint1")
 		results := make([]map[string]int, 5)
+		mean_prover_time := 0
+		mean_verifier_time := 0
+		mean_proof_size := 0
+		mean_memory_usage := 0
 		for t := 0; t < 5; t++ {
+			fmt.Println("Checkpoint2")
 			leaf := make([]byte, 1) // Reference: https://github.com/Consensys/gnark/tree/master/std/hash/sha3
 			_, e := rand.Reader.Read(leaf)
 			assert.NoError(e)
@@ -61,9 +65,11 @@ func TestMerkle(t *testing.T) {
 			cs, _ := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &ckt)
 			srs, _ := test.NewKZGSRS(cs)
 			pK, vK, _ := plonk.Setup(cs, srs)
+			fmt.Println("Checkpoint3")
 			result := make(map[string]int) // initialize the map
 			prover_start := time.Now()
 			proof, _ := plonk.Prove(cs, pK, wtns)
+			fmt.Println("Checkpoint4")
 			prover_time := time.Since(prover_start)
 			ser_proof := new(bytes.Buffer)
 			proof.WriteTo(ser_proof)
@@ -72,6 +78,7 @@ func TestMerkle(t *testing.T) {
 			verifier_start := time.Now()
 			err := plonk.Verify(proof, vK, pubwtns)
 			verifier_time := time.Since(verifier_start)
+			fmt.Println("Checkpoint5")
 			assert.Equal(err, nil)
 			result["NumElements"] = exp_len[l]
 			result["NumConstraints"] = cs.GetNbConstraints()
@@ -82,35 +89,12 @@ func TestMerkle(t *testing.T) {
 			runtime.ReadMemStats(&mem)
 			result["MemoryUsage"] = int(mem.Sys / 1024)
 			results[t] = result
-
-			file, err := os.Create("results.csv")
-			if err != nil {
-				log.Fatal(err)
-			}
-			defer file.Close()
-
-			w := csv.NewWriter(file)
-			for _, recordset := range results {
-				for key, value := range recordset {
-					err := w.Write([]string{fmt.Sprintf("%v", key), fmt.Sprintf("%v", value)})
-					if err != nil {
-						panic(err)
-					}
-				}
-			}
-
-			w.Flush()
+			mean_prover_time += results[t]["ProverTime"]
+			mean_verifier_time += results[t]["VerifierTime"]
+			mean_proof_size += results[t]["ProofSize"]
+			mean_memory_usage += results[t]["MemoryUsage"]
 		}
-		mean_prover_time := 0
-		mean_verifier_time := 0
-		mean_proof_size := 0
-		mean_memory_usage := 0
-		for i := 0; i < 5; i++ {
-			mean_prover_time += results[i]["ProverTime"]
-			mean_verifier_time += results[i]["VerifierTime"]
-			mean_proof_size += results[i]["ProofSize"]
-			mean_memory_usage += results[i]["MemoryUsage"]
-		}
+		fmt.Println("Checkpoint6")
 		fmt.Println("Number of path elements: ", exp_len[l])
 		fmt.Println("Number of constraints: ", results[0]["NumConstraints"])
 		fmt.Println("Prover time: ", mean_prover_time/5, "µs")
