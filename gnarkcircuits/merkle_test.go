@@ -24,9 +24,8 @@ func TestMerkle(t *testing.T) {
 	assert := test.NewAssert(t)
 	exp_len := []int{2, 2 ^ 3, 2 ^ 6, 2 ^ 9, 2 ^ 12}
 	for l := 0; l < len(exp_len); l++ {
+		results := make([]map[string]int, 5)
 		for t := 0; t < 5; t++ {
-			results := make([]map[string]int, 5)
-
 			leaf := make([]byte, 1) // Reference: https://github.com/Consensys/gnark/tree/master/std/hash/sha3
 			_, e := rand.Reader.Read(leaf)
 			assert.NoError(e)
@@ -74,7 +73,7 @@ func TestMerkle(t *testing.T) {
 			verifier_time := time.Since(verifier_start)
 			assert.Equal(err, nil)
 			result["NumElements"] = exp_len[l]
-			result[""] = cs.GetNbConstraints()
+			result["NumConstraints"] = cs.GetNbConstraints()
 			result["ProverTime"] = int(prover_time.Microseconds())
 			result["VerifierTime"] = int(verifier_time.Microseconds())
 			result["ProofSize"] = proof_size
@@ -82,16 +81,6 @@ func TestMerkle(t *testing.T) {
 			runtime.ReadMemStats(&mem)
 			result["MemoryUsage"] = int(mem.Sys / 1024)
 			results[t] = result
-			mean_prover_time := 0
-			mean_verifier_time := 0
-			mean_proof_size := 0
-			mean_memory_usage := 0
-			for i := 0; i < 5; i++ {
-				mean_prover_time += results[i]["ProverTime"]
-				mean_verifier_time += results[i]["VerifierTime"]
-				mean_proof_size += results[i]["ProofSize"]
-				mean_memory_usage += results[i]["MemoryUsage"]
-			}
 
 			file, err := os.Create("results.csv")
 			if err != nil {
@@ -110,13 +99,23 @@ func TestMerkle(t *testing.T) {
 			}
 
 			w.Flush()
-			fmt.Println("Number of path elements: ", exp_len[l])
-			fmt.Println("Number of constraints: ", results[0]["NumConstraints"])
-			fmt.Println("Prover time: ", mean_prover_time, "µs")
-			fmt.Println("Verifier time: ", mean_verifier_time, "µs")
-			fmt.Println("Proof size: ", mean_proof_size, "B")
-			fmt.Println("Memory usage: ", mean_memory_usage, "KB")
 		}
+		mean_prover_time := 0
+		mean_verifier_time := 0
+		mean_proof_size := 0
+		mean_memory_usage := 0
+		for i := 0; i < 5; i++ {
+			mean_prover_time += results[i]["ProverTime"]
+			mean_verifier_time += results[i]["VerifierTime"]
+			mean_proof_size += results[i]["ProofSize"]
+			mean_memory_usage += results[i]["MemoryUsage"]
+		}
+		fmt.Println("Number of path elements: ", exp_len[l])
+		fmt.Println("Number of constraints: ", results[0]["NumConstraints"])
+		fmt.Println("Prover time: ", mean_prover_time, "µs")
+		fmt.Println("Verifier time: ", mean_verifier_time, "µs")
+		fmt.Println("Proof size: ", mean_proof_size, "B")
+		fmt.Println("Memory usage: ", mean_memory_usage, "KB")
 	}
 	// assert.ProverSucceeded(circuit, witness, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }
