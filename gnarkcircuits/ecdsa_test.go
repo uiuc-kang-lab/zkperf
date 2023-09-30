@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"fmt"
+	"math"
 	"math/big"
 	"runtime"
 	"testing"
@@ -30,7 +31,7 @@ func TestECDSA(t *testing.T) {
 		secret_key, e := ecdsa.GenerateKey(rand.Reader)
 		assert.NoError(e)
 
-		m := make([]byte, 2^8)
+		m := make([]byte, int(math.Pow(2, 10)))
 		fmt.Println("Message length: ", len(m))
 		_, er := rand.Read(m)
 		assert.NoError(er)
@@ -92,7 +93,6 @@ func TestECDSA(t *testing.T) {
 		mean_proof_size += proof_size
 		mean_mem += memUsage
 	}
-	fmt.Println("Number of path elements: ", 2^8)
 	fmt.Println("Number of constraints: ", NumConstraints)
 	fmt.Println("Prover time: ", mean_prover_time/5, "µs")
 	fmt.Println("Verifier time: ", mean_verifier_time/5, "µs")

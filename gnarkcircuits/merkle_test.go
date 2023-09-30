@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"runtime"
 	"testing"
@@ -22,7 +23,7 @@ import (
 
 func TestMerkle(t *testing.T) {
 	assert := test.NewAssert(t)
-	exp_len := []int{2, 2 ^ 3, 2 ^ 6, 2 ^ 9, 2 ^ 12}
+	exp_len := []int{2, int(math.Pow(2, 3)), int(math.Pow(2, 6)), int(math.Pow(2, 10))}
 	for l := 0; l < len(exp_len); l++ {
 		results := make([]map[string]int, 5)
 		for t := 0; t < 5; t++ {
