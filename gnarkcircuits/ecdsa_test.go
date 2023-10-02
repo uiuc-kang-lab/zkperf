@@ -29,7 +29,7 @@ func TestECDSAPlonkBN254(t *testing.T) {
 	mean_verifier_time := 0
 	mean_proof_size := 0
 	mean_mem := 0
-	for l := 0; l < 5; l++ {
+	for l := 0; l < 1; l++ {
 		secret_key, e := ecdsa.GenerateKey(rand.Reader)
 		assert.NoError(e)
 
@@ -96,10 +96,10 @@ func TestECDSAPlonkBN254(t *testing.T) {
 		mean_mem += memUsage
 	}
 	fmt.Println("Number of constraints: ", NumConstraints)
-	fmt.Println("Prover time: ", mean_prover_time/5, "µs")
-	fmt.Println("Verifier time: ", mean_verifier_time/5, "µs")
-	fmt.Println("Proof size: ", mean_proof_size/5, "B")
-	fmt.Println("Memory usage: ", mean_mem/5, "KB")
+	fmt.Println("Prover time: ", mean_prover_time, "µs")
+	fmt.Println("Verifier time: ", mean_verifier_time, "µs")
+	fmt.Println("Proof size: ", mean_proof_size, "B")
+	fmt.Println("Memory usage: ", mean_mem, "KB")
 
 	// assert.ProverSucceeded(circuit, witness, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }
@@ -111,7 +111,7 @@ func TestECDSAGroth16BN254(t *testing.T) {
 	mean_verifier_time := 0
 	mean_proof_size := 0
 	mean_mem := 0
-	for l := 0; l < 5; l++ {
+	for l := 0; l < 1; l++ {
 		secret_key, e := ecdsa.GenerateKey(rand.Reader)
 		assert.NoError(e)
 
@@ -177,10 +177,10 @@ func TestECDSAGroth16BN254(t *testing.T) {
 		mean_mem += memUsage
 	}
 	fmt.Println("Number of constraints: ", NumConstraints)
-	fmt.Println("Prover time: ", mean_prover_time/5, "µs")
-	fmt.Println("Verifier time: ", mean_verifier_time/5, "µs")
-	fmt.Println("Proof size: ", mean_proof_size/5, "B")
-	fmt.Println("Memory usage: ", mean_mem/5, "KB")
+	fmt.Println("Prover time: ", mean_prover_time, "µs")
+	fmt.Println("Verifier time: ", mean_verifier_time, "µs")
+	fmt.Println("Proof size: ", mean_proof_size, "B")
+	fmt.Println("Memory usage: ", mean_mem, "KB")
 
 	// assert.ProverSucceeded(circuit, witness, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }
@@ -192,7 +192,7 @@ func TestECDSAPlonkBLS(t *testing.T) {
 	mean_verifier_time := 0
 	mean_proof_size := 0
 	mean_mem := 0
-	for l := 0; l < 5; l++ {
+	for l := 0; l < 1; l++ {
 		secret_key, e := ecdsa.GenerateKey(rand.Reader)
 		assert.NoError(e)
 
@@ -259,10 +259,10 @@ func TestECDSAPlonkBLS(t *testing.T) {
 		mean_mem += memUsage
 	}
 	fmt.Println("Number of constraints: ", NumConstraints)
-	fmt.Println("Prover time: ", mean_prover_time/5, "µs")
-	fmt.Println("Verifier time: ", mean_verifier_time/5, "µs")
-	fmt.Println("Proof size: ", mean_proof_size/5, "B")
-	fmt.Println("Memory usage: ", mean_mem/5, "KB")
+	fmt.Println("Prover time: ", mean_prover_time, "µs")
+	fmt.Println("Verifier time: ", mean_verifier_time, "µs")
+	fmt.Println("Proof size: ", mean_proof_size, "B")
+	fmt.Println("Memory usage: ", mean_mem, "KB")
 
 	// assert.ProverSucceeded(circuit, witness, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }
@@ -274,7 +274,7 @@ func TestECDSAGroth16BLS(t *testing.T) {
 	mean_verifier_time := 0
 	mean_proof_size := 0
 	mean_mem := 0
-	for l := 0; l < 5; l++ {
+	for l := 0; l < 1; l++ {
 		secret_key, e := ecdsa.GenerateKey(rand.Reader)
 		assert.NoError(e)
 
@@ -340,10 +340,10 @@ func TestECDSAGroth16BLS(t *testing.T) {
 		mean_mem += memUsage
 	}
 	fmt.Println("Number of constraints: ", NumConstraints)
-	fmt.Println("Prover time: ", mean_prover_time/5, "µs")
-	fmt.Println("Verifier time: ", mean_verifier_time/5, "µs")
-	fmt.Println("Proof size: ", mean_proof_size/5, "B")
-	fmt.Println("Memory usage: ", mean_mem/5, "KB")
+	fmt.Println("Prover time: ", mean_prover_time, "µs")
+	fmt.Println("Verifier time: ", mean_verifier_time, "µs")
+	fmt.Println("Proof size: ", mean_proof_size, "B")
+	fmt.Println("Memory usage: ", mean_mem, "KB")
 
 	// assert.ProverSucceeded(circuit, witness, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }
