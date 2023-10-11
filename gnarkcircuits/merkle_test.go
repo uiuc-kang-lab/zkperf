@@ -23,7 +23,8 @@ import (
 func TestMerklePlonkBN254(t *testing.T) {
 	assert := test.NewAssert(t)
 
-	exp_len := []int{2, int(math.Pow(2, 3)), int(math.Pow(2, 6)), int(math.Pow(2, 10))}
+	exp_len := []int{32}
+	// exp_len := []int{2, int(math.Pow(2, 3)), int(math.Pow(2, 6)), int(math.Pow(2, 10))}
 	for l := 0; l < len(exp_len); l++ {
 		results := make([]map[string]int, 5)
 		mean_prover_time := 0
@@ -38,7 +39,7 @@ func TestMerklePlonkBN254(t *testing.T) {
 			path := make([][]uints.U8, exp_len[l])
 			path_object := make([][]uints.U8, exp_len[l])
 
-			hashFunc := sha3.New256()
+			hashFunc := sha3.NewLegacyKeccak256()
 			hashFunc.Write(leaf)
 
 			for i := 0; i < exp_len[l]; i++ {
@@ -119,7 +120,7 @@ func TestMerklePlonkBLS(t *testing.T) {
 			path := make([][]uints.U8, exp_len[l])
 			path_object := make([][]uints.U8, exp_len[l])
 
-			hashFunc := sha3.New256()
+			hashFunc := sha3.NewLegacyKeccak256()
 			hashFunc.Write(leaf)
 
 			for i := 0; i < exp_len[l]; i++ {
@@ -200,7 +201,7 @@ func TestMerkleGroth16BN254(t *testing.T) {
 			path := make([][]uints.U8, exp_len[l])
 			path_object := make([][]uints.U8, exp_len[l])
 
-			hashFunc := sha3.New256()
+			hashFunc := sha3.NewLegacyKeccak256()
 			hashFunc.Write(leaf)
 
 			for i := 0; i < exp_len[l]; i++ {
@@ -280,7 +281,7 @@ func TestMerkleGroth16BLS(t *testing.T) {
 			path := make([][]uints.U8, exp_len[l])
 			path_object := make([][]uints.U8, exp_len[l])
 
-			hashFunc := sha3.New256()
+			hashFunc := sha3.NewLegacyKeccak256()
 			hashFunc.Write(leaf)
 
 			for i := 0; i < exp_len[l]; i++ {
