@@ -1,0 +1,131 @@
+tensor 1, value_flat len 8
+tensor 2, value_flat len 16
+tensor 3, value_flat len 16
+tensor 4, value_flat len 4
+tensor 5, value_flat len 64
+tensor 6, value_flat len 10
+tensor 7, value_flat len 72
+tensor 8, value_flat len 1152
+tensor 9, value_flat len 2304
+tensor 10, value_flat len 64
+tensor 11, value_flat len 2304
+tensor 12, value_flat len 640
+tensor 14, value_flat len 8
+tensor 15, value_flat len 8
+tensor 16, value_flat len 16
+tensor 17, value_flat len 16
+tensor 18, value_flat len 16
+tensor 19, value_flat len 16
+tensor 20, value_flat len 4
+tensor 21, value_flat len 4
+tensor 0, value_flat len 784
+config.k: 15 
+shift_val_i64: 32768
+const: 1, 1
+const: 0, 0
+const: -16384, 18446744069414567937
+const: 512, 512
+const: 16374, 16374
+Processing layer 0, type: Conv2D, inp_idxes: [0, 7, 1], out_idxes: [22], layer_params: [0, 1, 3, 1, 1]
+shape: [1, 28, 28, 1]
+shape: [8, 3, 3, 1]
+shape: [8]
+zero: 0
+ch: 3, cw: 3
+oh: 26, ow: 26
+Out 0 shape: [1, 26, 26, 8]
+
+Processing layer 1, type: AvgPool2D, inp_idxes: [22], out_idxes: [23], layer_params: [2, 2, 2, 2]
+shape: [1, 26, 26, 8]
+Out 0 shape: [1, 13, 13, 8]
+
+Processing layer 2, type: Mul, inp_idxes: [23, 14], out_idxes: [24], layer_params: []
+shape: [1, 13, 13, 8]
+shape: [8]
+Out 0 shape: [1, 13, 13, 8]
+
+Processing layer 3, type: Add, inp_idxes: [24, 15], out_idxes: [25], layer_params: [0]
+shape: [1, 13, 13, 8]
+shape: [8]
+Out 0 shape: [1, 13, 13, 8]
+
+Processing layer 4, type: Conv2D, inp_idxes: [25, 8, 2], out_idxes: [26], layer_params: [0, 1, 3, 1, 1]
+shape: [1, 13, 13, 8]
+shape: [16, 3, 3, 8]
+shape: [16]
+zero: 0
+ch: 3, cw: 3
+oh: 11, ow: 11
+Out 0 shape: [1, 11, 11, 16]
+
+Processing layer 5, type: AvgPool2D, inp_idxes: [26], out_idxes: [27], layer_params: [2, 2, 2, 2]
+shape: [1, 11, 11, 16]
+Out 0 shape: [1, 5, 5, 16]
+
+Processing layer 6, type: Mul, inp_idxes: [27, 16], out_idxes: [28], layer_params: []
+shape: [1, 5, 5, 16]
+shape: [16]
+Out 0 shape: [1, 5, 5, 16]
+
+Processing layer 7, type: Add, inp_idxes: [28, 17], out_idxes: [29], layer_params: [0]
+shape: [1, 5, 5, 16]
+shape: [16]
+Out 0 shape: [1, 5, 5, 16]
+
+Processing layer 8, type: Conv2D, inp_idxes: [29, 9, 3], out_idxes: [30], layer_params: [0, 1, 3, 1, 1]
+shape: [1, 5, 5, 16]
+shape: [16, 3, 3, 16]
+shape: [16]
+zero: 0
+ch: 3, cw: 3
+oh: 3, ow: 3
+Out 0 shape: [1, 3, 3, 16]
+
+Processing layer 9, type: Mul, inp_idxes: [30, 18], out_idxes: [31], layer_params: []
+shape: [1, 3, 3, 16]
+shape: [16]
+Out 0 shape: [1, 3, 3, 16]
+
+Processing layer 10, type: Add, inp_idxes: [31, 19], out_idxes: [32], layer_params: [0]
+shape: [1, 3, 3, 16]
+shape: [16]
+Out 0 shape: [1, 3, 3, 16]
+
+Processing layer 11, type: Conv2D, inp_idxes: [32, 10, 4], out_idxes: [33], layer_params: [0, 1, 3, 1, 1]
+shape: [1, 3, 3, 16]
+shape: [4, 1, 1, 16]
+shape: [4]
+zero: 0
+ch: 1, cw: 1
+oh: 3, ow: 3
+Out 0 shape: [1, 3, 3, 4]
+
+Processing layer 12, type: Mul, inp_idxes: [33, 20], out_idxes: [34], layer_params: []
+shape: [1, 3, 3, 4]
+shape: [4]
+Out 0 shape: [1, 3, 3, 4]
+
+Processing layer 13, type: Add, inp_idxes: [34, 21], out_idxes: [35], layer_params: [0]
+shape: [1, 3, 3, 4]
+shape: [4]
+Out 0 shape: [1, 3, 3, 4]
+
+Processing layer 14, type: Conv2D, inp_idxes: [35, 11, 5], out_idxes: [36], layer_params: [0, 1, 3, 1, 1]
+shape: [1, 3, 3, 4]
+shape: [64, 3, 3, 4]
+shape: [64]
+zero: 0
+ch: 3, cw: 3
+oh: 1, ow: 1
+Out 0 shape: [1, 1, 1, 64]
+
+Processing layer 15, type: Conv2D, inp_idxes: [36, 12, 6], out_idxes: [37], layer_params: [0, 1, 0, 1, 1]
+shape: [1, 1, 1, 64]
+shape: [10, 1, 1, 64]
+shape: [10]
+zero: 0
+ch: 1, cw: 1
+oh: 1, ow: 1
+Out 0 shape: [1, 1, 1, 10]
+
+building circuit
