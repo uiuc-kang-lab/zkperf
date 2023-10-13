@@ -56,18 +56,6 @@ impl BiasDivRoundGate {
   pub fn wire_mod_div_lookup() -> usize {
     4
   }
-
-  // pub fn wire_div_div_lookup() -> usize {
-  //   5
-  // }
-
-  // pub fn wire_outp() -> usize {
-  //   6
-  // }
-
-  // pub fn wire_relu_lookup() -> usize {
-  //   7
-  // }
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for BiasDivRoundGate {
@@ -88,30 +76,20 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for BiasDivRoundGa
   fn eval_unfiltered(&self, vars: EvaluationVars<F, D>) -> Vec<F::Extension> {
     let mut constraints = vec![];
     let sf = vars.local_constants[0];
-    // let div_outp_min_val = vars.local_constants[2];
-    // let div_outp_min_val = -div_outp_min_val;
+    let two = F::Extension::from_canonical_u64(2);
 
     let inp = vars.local_wires[Self::wire_input()];
-    let div_res = vars.local_wires[Self::wire_div()];
     let bias = vars.local_wires[Self::wire_bias()];
+    let div_res = vars.local_wires[Self::wire_div()];
     let mod_res = vars.local_wires[Self::wire_mod()];
     let mod_div_lookup = vars.local_wires[Self::wire_mod_div_lookup()];
-    // let div_div_lookup = vars.local_wires[Self::wire_div_div_lookup()];
-    // let outp = vars.local_wires[Self::wire_outp()];
-    // let relu_lookup = vars.local_wires[Self::wire_relu_lookup()];
-    let two = F::Extension::from_canonical_u64(2);
 
     // (div - bias) * 2 * sf + mod = 2 * inp + sf
     constraints.push(two * inp + sf - (sf * two * (div_res - bias) + mod_res));
 
-    // Constrains that the modulus \in [0, DIV_VAL)
-    // div_val - mod_res \in [0, max_val) ->
+    // 2 * sf > mod >= 0
+    // 2 * sf - mod = mod_diff + 1
     constraints.push(two * sf - mod_res - F::Extension::ONE - mod_div_lookup);
-
-    // constraints.push(F::Extension::from_canonical_u16(u16::MAX / 2) - (div_res + div_outp_min_val) - div_div_lookup);
-    // constraints.push(div_res + div_outp_min_val - div_div_lookup);
-    // Constrains that output \in [0, 6 * SF]
-    // constraints.push(outp - relu_lookup);
 
     constraints
   }
@@ -135,18 +113,12 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for BiasDivRoundGa
   ) -> Vec<ExtensionTarget<D>> {
     let mut constraints = vec![];
     let sf = vars.local_constants[0];
-    // let div_outp_min_val = vars.local_constants[2];
-    // let neg_one = builder.neg_one_extension();
-    // let div_outp_min_val = builder.mul_extension(neg_one,div_outp_min_val);
 
     let inp = vars.local_wires[Self::wire_input()];
     let div_res = vars.local_wires[Self::wire_div()];
     let bias = vars.local_wires[Self::wire_bias()];
     let mod_res = vars.local_wires[Self::wire_mod()];
     let mod_div_lookup = vars.local_wires[Self::wire_mod_div_lookup()];
-    // let div_div_lookup = vars.local_wires[Self::wire_div_div_lookup()];
-    // let outp = vars.local_wires[Self::wire_outp()];
-    // let relu_lookup = vars.local_wires[Self::wire_relu_lookup()];
     let two = builder.constant_extension(F::Extension::from_canonical_u64(2));
     let one = builder.constant_extension(F::Extension::ONE);
 
@@ -162,14 +134,6 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for BiasDivRoundGa
       let t = builder.add_many_extension([mod_res, one, mod_div_lookup]);
       builder.mul_sub_extension(two, sf, t)
     };
-    // let constr2 = {
-    //   let t = builder.add_many_extension([div_res, div_outp_min_val, div_div_lookup]);
-    //   let max = builder.constant_extension(F::Extension::from_canonical_u16(u16::MAX / 2));
-    //   builder.sub_extension(max, t)
-    //   // let t = builder.add_extension(div_res, div_outp_min_val);
-    //   // builder.sub_extension(t, div_div_lookup)
-    // };
-    // let constr3 = { builder.sub_extension(outp, relu_lookup) };
 
     constraints.extend([constr0, constr1].iter());
 
@@ -189,7 +153,6 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for BiasDivRoundGa
   }
 
   fn num_wires(&self) -> usize {
-    // 6
     5
   }
 
@@ -202,7 +165,6 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for BiasDivRoundGa
   }
 
   fn num_constraints(&self) -> usize {
-    // 3
     2
   }
 }
@@ -214,30 +176,17 @@ impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D> for
     mut yield_constr: StridedConstraintConsumer<P>,
   ) {
     let sf = vars.local_constants[0];
-    // let div_outp_min_val = vars.local_constants[2];
-    // let div_outp_min_val = -div_outp_min_val;
     let inp = vars.local_wires[Self::wire_input()];
     let div_res = vars.local_wires[Self::wire_div()];
     let bias = vars.local_wires[Self::wire_bias()];
     let mod_res = vars.local_wires[Self::wire_mod()];
     let mod_div_lookup = vars.local_wires[Self::wire_mod_div_lookup()];
-    // let div_div_lookup = vars.local_wires[Self::wire_div_div_lookup()];
-    // let outp = vars.local_wires[Self::wire_outp()];
-    // let relu_lookup = vars.local_wires[Self::wire_relu_lookup()];
     let two = P::ONES + P::ONES;
-    // // there is probably a better way...
-    // let four = two * two;
-    // let sixteen = four * four;
-    // let thirty_two = sixteen * two;
-    // let max = thirty_two * thirty_two * thirty_two - P::ONES;
 
+    // (div - bias) * 2 * sf + mod = 2 * inp + sf
     yield_constr.one(two * inp + sf - (sf * two * (div_res - bias) + mod_res));
 
     yield_constr.one(two * sf - mod_res - P::ONES - mod_div_lookup);
-
-    // yield_constr.one(max - (div_res + div_outp_min_val) - div_div_lookup);
-    // yield_constr.one(div_res + div_outp_min_val - div_div_lookup);
-    // yield_constr.one(outp - relu_lookup);
   }
 }
 
@@ -267,15 +216,13 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
     let get_wire = |wire: usize| -> F { witness.get_target(Target::wire(self.row, wire)) };
 
     let inp = get_wire(BiasDivRoundGate::wire_input());
-    // let outp = get_wire(BiasDivRoundGate::wire_outp());
-    // let relu_lookup = get_wire(BiasDivRoundGate::wire_relu_lookup());
     let div_outp_min_val_i64 = self.div_outp_min_val.to_canonical_u64() as i64;
     let div_inp_min_val_pos_i64 = -(self.shift_min_val.to_canonical_u64() as i64);
-    let div_inp_min_val_pos = F::from_canonical_i64(div_inp_min_val_pos_i64);
+    let div_inp_min_val_pos = F::from_canonical_u64(div_inp_min_val_pos_i64 as u64);
 
     let div_val = self.sf.to_canonical_u64() as i64;
 
-    let bias = inp + div_inp_min_val_pos;
+    let bias = get_wire(BiasDivRoundGate::wire_bias()) + div_inp_min_val_pos;
     let bias = bias.to_canonical_u64() as i64 - div_inp_min_val_pos_i64;
 
     let x_pos = inp + div_inp_min_val_pos;
@@ -285,27 +232,32 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
     let mod_res = div_inp % (2 * div_val);
 
     let div_res = div_res + bias;
-    let div_res = F::from_canonical_u64((div_res - div_outp_min_val_i64) as u64) - F::from_canonical_u64(-div_outp_min_val_i64 as u64);
+    let div_res = F::from_canonical_u64((div_res - div_outp_min_val_i64) as u64)
+      - F::from_canonical_u64(-div_outp_min_val_i64 as u64);
     let mod_div_lookup = 2 * div_val - mod_res - 1;
-    // let max = F::from_canonical_u16(u16::MAX/2);
-    // let div_div_lookup = max - div_res - F::from_canonical_i64(div_outp_min_val_i64);
 
     let div_res_target = Target::wire(self.row, BiasDivRoundGate::wire_div());
     let mod_res_target = Target::wire(self.row, BiasDivRoundGate::wire_mod());
     let mod_div_lookup_target = Target::wire(self.row, BiasDivRoundGate::wire_mod_div_lookup());
 
-    // let mod_div_lookup_target = Target::wire(self.row, BiasDivRoundGate::wire_mod_div_lookup());
-    // let div_div_lookup_target = Target::wire(self.row, BiasDivRoundGate::wire_div_div_lookup());
-    // let outp_target = Target::wire(self.row, BiasDivRoundGate::wire_outp());
-    // let relu_lookup_target = Target::wire(self.row, BiasDivRoundGate::wire_relu_lookup());
+    assert!(
+      F::from_canonical_i64(2) * get_wire(BiasDivRoundGate::wire_input()) + self.sf
+        == self.sf * F::from_canonical_i64(2) * (div_res - get_wire(BiasDivRoundGate::wire_bias()))
+          + F::from_canonical_u64(mod_res as u64)
+    );
 
-    // TODO maybe this will have issues due to casting
+    assert!(
+      F::from_canonical_i64(2) * self.sf - F::from_canonical_u64(mod_res as u64)
+        == F::from_canonical_u64(mod_div_lookup as u64) + F::ONE
+    );
+
     // address outp outside of gate since its value relies on lut
     out_buffer.set_target(div_res_target, div_res);
     out_buffer.set_target(mod_res_target, F::from_canonical_u64(mod_res as u64));
-    out_buffer.set_target(mod_div_lookup_target, F::from_canonical_u64(mod_div_lookup as u64));
-    // out_buffer.set_target(div_div_lookup_target, div_div_lookup);
-    // out_buffer.set_target(outp_target, F::from_canonical_u64());
+    out_buffer.set_target(
+      mod_div_lookup_target,
+      F::from_canonical_u64(mod_div_lookup as u64),
+    );
   }
 
   fn serialize(&self, dst: &mut Vec<u8>, _common_data: &CommonCircuitData<F, D>) -> IoResult<()> {

@@ -1,5 +1,4 @@
 use ndarray::Array;
-use num_traits::ToPrimitive;
 use std::{fs::File, io::BufWriter, time::Instant};
 
 use plonky2::{
@@ -13,7 +12,7 @@ use plonky2::{
   },
 };
 
-use crate::model::ModelCircuit;
+use crate::{gadgets::gadget::convert_to_u64, model::ModelCircuit};
 
 pub fn time_circuit<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
   circuit: ModelCircuit,
@@ -48,9 +47,14 @@ pub fn time_circuit<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, co
   if result_targets.len() > 0 {
     let out = Array::from_iter(result_targets[0].iter().cloned());
     let mut values: Vec<i64> = vec![];
-    for t in out {
-      let value = witness.get_target(*t).to_canonical_biguint();
-      values.push(value.to_i64().unwrap());
+    for (idx, t) in out.iter().enumerate() {
+      let value = witness.get_target(**t);
+      let bias: i64  = 1 << 60 as i64;
+
+      let v_pos = value + F::from_canonical_u64(bias as u64);
+      let v = convert_to_u64(&v_pos) as i64 - bias as i64;
+      println!("final out [{}] x: {}", idx, v);
+      values.push(v);
     }
     let out_fname = "out.msgpack";
     let f = File::create(out_fname).unwrap();

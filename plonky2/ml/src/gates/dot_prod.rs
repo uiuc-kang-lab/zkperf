@@ -21,7 +21,6 @@ use plonky2::{
 #[derive(Debug, Clone)]
 pub struct DotProductGate {}
 
-// TODO need to figure out a better way to set size without using self
 pub const DOTPROD_SIZE: usize = 3;
 
 impl DotProductGate {
@@ -75,8 +74,8 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for DotProductGate
   fn eval_unfiltered(&self, vars: EvaluationVars<F, D>) -> Vec<F::Extension> {
     let zero = vars.local_constants[0];
     let mut computed_output: <F as Extendable<D>>::Extension = F::Extension::ZEROS;
-    for i in 0..D {
-      for j in 0..D {
+    for i in 0..DOTPROD_SIZE {
+      for j in 0..DOTPROD_SIZE {
         let input = vars.local_wires[Self::wire_ijth_input(i, j)];
         let weight = vars.local_wires[Self::wire_ijth_weight(i, j)];
         computed_output += (input - zero) * weight;
@@ -105,9 +104,9 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for DotProductGate
   ) -> Vec<ExtensionTarget<D>> {
     let zero = vars.local_constants[0];
 
-    let pairs = (0..D)
+    let pairs = (0..DOTPROD_SIZE)
       .map(|i| {
-        (0..D)
+        (0..DOTPROD_SIZE)
           .map(|j| {
             let input = vars.local_wires[Self::wire_ijth_input(i, j)];
             let weight = vars.local_wires[Self::wire_ijth_weight(i, j)];
@@ -187,7 +186,7 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
   }
 
   fn dependencies(&self) -> Vec<Target> {
-    (DotProductGate::wire_ith_row_input_start(0)..DotProductGate::wire_ith_row_weight_end(D - 1))
+    (DotProductGate::wire_ith_row_input_start(0)..DotProductGate::wire_ith_row_weight_end(DOTPROD_SIZE - 1))
       .map(|i| Target::wire(self.row, i))
       .collect()
   }
@@ -199,11 +198,8 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
     let mut computed_output = F::ZERO;
     for i in 0..DOTPROD_SIZE {
       for j in 0..DOTPROD_SIZE {
-        // println!("i {}, j {}", i, j);
         let input = get_wire(DotProductGate::wire_ijth_input(i, j));
-        // println!("i {}, j {}", i, j);
         let weight = get_wire(DotProductGate::wire_ijth_weight(i, j));
-        // println!("input: {}, weight: {}", input, weight);
         computed_output += (input - self.zero) * weight;
       }
     }

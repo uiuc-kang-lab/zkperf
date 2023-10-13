@@ -51,12 +51,13 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for AvgPool2DCirc
     let batch_size = inp.shape()[0];
 
     let mut sum_outp = vec![];
-    for x in 0..oh {
-      for y in 0..ow {
+    for i in 0..oh {
+      for j in 0..ow {
         for chan in 0..c {
-          let pool_targets = (0..sh - fx + 1)
-            .map(|i| (0..sw - fy + 1).map(move |j| inp[[0, x + i, y + j, chan]].as_ref()))
-            .flatten().collect::<Vec<_>>();
+          let pool_targets = (0..fx)
+            .map(|x| (0..fy).map(move |y| inp[[0, x + i * sh, y + j * sw, chan]].as_ref()))
+            .flatten()
+            .collect::<Vec<_>>();
           sum_outp.push(builder.add_many(pool_targets));
         }
       }
@@ -67,13 +68,11 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for AvgPool2DCirc
     let shift_min_val = F::from_canonical_u64(gadget_config.shift_min_val as u64);
     for i in 0..sum_outp.len() {
       let div_gate = builder.add_gate(
-        DivRoundGate {
-          num_ops: 1,
-        },
+        DivRoundGate { num_ops: 1 },
         vec![
           F::from_canonical_u64(div as u64),
           shift_min_val,
-          div_outp_min_val
+          div_outp_min_val,
         ],
       );
       div_gates.push(div_gate);

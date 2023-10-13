@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::gates::{bias_div_round::BiasDivRoundGate, var_div::DivRoundGate};
+use crate::gates::bias_div_round::BiasDivRoundGate;
 
 use plonky2::field::extension::Extendable;
 use plonky2::hash::hash_types::RichField;
@@ -28,10 +28,10 @@ impl BiasDivRoundRelu6Circuit {
     let mut tables = gadget_config.tables;
     let relu_table = Arc::new({
       let div_val = gadget_config.scale_factor;
-      (0..gadget_config.num_rows)
+      (0..u16::MAX)
         .map(|d| {
-          let shifted = d as i64 + gadget_config.min_val;
-          (d as u16, shifted.clamp(0, 6 * div_val as i64) as u16)
+          let val  = d.clamp(0, 6 * div_val as u16);
+          (d, val)
         })
         .collect::<Vec<_>>()
     });
@@ -56,33 +56,17 @@ impl<F: RichField + Extendable<D>, const D: usize> Gadget<F, D> for BiasDivRound
     let biases = &vec_inputs[1];
     let div_outp_min_val = F::from_canonical_i64(gadget_config.div_outp_min_val);
     let shift_min_val = F::from_canonical_i64(gadget_config.shift_min_val);
-    let div_outp_min_val_target = builder.constant(div_outp_min_val);
-    // let sf_target = builder.constant(F::from_canonical_u64(gadget_config.scale_factor));
-    // let two = builder.constant(F::from_canonical_u64(2));
 
     assert!(inps.len() % biases.len() == 0);
 
-    // let div_table = gadget_config.tables.get(&GadgetType::InputLookup).unwrap()[0];
     let relu_table = gadget_config
       .tables
       .get(&GadgetType::BiasDivRoundRelu6)
       .unwrap()[0];
 
     let mut out_vec = vec![];
+    let zero = builder.zero();
     for i in 0..inps.len() {
-      // let bdr_gate = builder.add_gate(
-      //   DivRoundGate { num_ops: 1 },
-      //   vec![
-      //     F::from_canonical_u64(gadget_config.scale_factor),
-      //     shift_min_val,
-      //     div_outp_min_val,
-      //   ],
-      // );
-      // builder.connect(
-      //   *inps[i],
-      //   Target::wire(bdr_gate, DivRoundGate::wire_input()),
-      // );
-
       let bdr_gate = builder.add_gate(
         BiasDivRoundGate { num_ops: 1 },
         vec![
@@ -100,32 +84,11 @@ impl<F: RichField + Extendable<D>, const D: usize> Gadget<F, D> for BiasDivRound
         Target::wire(bdr_gate, BiasDivRoundGate::wire_bias()),
       );
 
-      // constrain division
-      // let div = Target::wire(bdr_gate, BiasDivRoundGate::wire_div());
-      // let div = builder.add(div, div_outp_min_val_target);
-      // let div_lookup = builder.add_lookup_from_index(div, div_table);
-      // builder.connect(
-      //   div_lookup,
-      //   Target::wire(bdr_gate, BiasDivRoundGate::wire_div_div_lookup()),
-      // );
-
-      // mod lookup should be in domain already
-      // let mod_res = Target::wire(bdr_gate, BiasDivRoundGate::wire_mod());
-      // let div_mod_diff = builder.mul_sub(two, sf_target, mod_res);
-      // let mod_lookup = builder.add_lookup_from_index(div_mod_diff, div_table);
-      // builder.connect(
-      //   mod_lookup,
-      //   Target::wire(bdr_gate, BiasDivRoundGate::wire_mod_div_lookup()),
-      // );
-
       let div_res = Target::wire(bdr_gate, BiasDivRoundGate::wire_div());
-      let x_pos = builder.sub(div_res, div_outp_min_val_target);
-      let outp = builder.add_lookup_from_index(x_pos, relu_table);
-
-      // let div_res = Target::wire(bdr_gate, DivRoundGate::wire_output());
-      // let div_res = builder.add(div_res, *biases[i % biases.len()]);
       // let x_pos = builder.sub(div_res, div_outp_min_val_target);
-      // let outp = builder.add_lookup_from_index(x_pos, relu_table);
+      let x_bits = builder.split_le(div_res, 64);
+      let x_relu = builder.select(x_bits[63], zero, div_res);
+      let outp = builder.add_lookup_from_index(x_relu, relu_table);
 
       // interleave div with relu and div without relu
       out_vec.push(outp);

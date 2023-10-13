@@ -14,7 +14,7 @@ use plonky2::{field::extension::Extendable, plonk::circuit_data::CircuitConfig};
 use plonky2::{hash::hash_types::RichField, iop::witness::WitnessWrite};
 
 use crate::{
-  gadgets::{gadget::GadgetConfig, bias_div_round_relu6::BiasDivRoundRelu6Circuit, input_lookup::InputLookupCircuit},
+  gadgets::{gadget::GadgetConfig, bias_div_round_relu6::BiasDivRoundRelu6Circuit},
   layers::{
     dag::{DAGLayerCircuit, DAGLayerConfig},
     layer::{LayerConfig, LayerType},
@@ -76,9 +76,9 @@ impl ModelCircuit {
     let shift_val_i64 = -min_val * 2; // FIXME
     let shift_val_f = F::from_canonical_u64(shift_val_i64 as u64);
     println!("shift_val_i64: {}", shift_val_i64);
-    for (_, val) in vals.iter().enumerate() {
+    for val in vals {
       constants.insert(
-        *val,
+        val,
         Rc::new(F::from_canonical_u64((val + shift_val_i64) as u64) - shift_val_f),
       );
     }
@@ -195,8 +195,6 @@ impl ModelCircuit {
     // Make luts
     let mut gadget_config = crate::model::GADGET_CONFIG.lock().unwrap();
     let mut cloned_gadget = gadget_config.clone();
-    // cloned_gadget = InputLookupCircuit::configure(&mut builder, cloned_gadget);
-    cloned_gadget = BiasDivRoundRelu6Circuit::configure(&mut builder, cloned_gadget);
 
     *gadget_config = GadgetConfig {
       scale_factor: config.global_sf as u64,
@@ -211,6 +209,13 @@ impl ModelCircuit {
       ..cloned_gadget
     };
     println!("config.k: {} ", config.k);
+
+    cloned_gadget = gadget_config.clone();
+    cloned_gadget = BiasDivRoundRelu6Circuit::configure(&mut builder, cloned_gadget);
+
+    *gadget_config = GadgetConfig {
+      ..cloned_gadget
+    };
 
     (
       ModelCircuit {
@@ -234,9 +239,7 @@ impl ModelCircuit {
     let gadget = &GADGET_CONFIG;
     let cloned_gadget = gadget.lock().unwrap().clone();
     let constants = self.assign_constants(
-      // layouter.namespace(|| "constants 2"),
       Rc::new(cloned_gadget.clone()),
-      // &constants_base,
     );
 
     // make the circuit

@@ -29,6 +29,21 @@ pub struct GadgetConfig {
   pub num_bits_per_elem: i64,
 }
 
+pub fn convert_to_u64<F: RichField + Extendable<D>, const D: usize>(x: &F) -> u64 {
+  let big = x.to_canonical_biguint();
+  let big_digits = big.to_u64_digits();
+  if big_digits.len() > 2 {
+    println!("big_digits: {:?}", big_digits);
+  }
+  if big_digits.len() == 1 {
+    big_digits[0] as u64
+  } else if big_digits.len() == 0 {
+    0
+  } else {
+    panic!();
+  }
+}
+
 pub trait Gadget<F: RichField + Extendable<D>, const D: usize> {
   fn make_circuit(
     &self,

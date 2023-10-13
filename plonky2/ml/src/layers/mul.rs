@@ -7,7 +7,7 @@ use plonky2::{
   plonk::circuit_builder::CircuitBuilder,
 };
 
-use crate::gadgets::gadget::GadgetConfig;
+use crate::{gadgets::gadget::GadgetConfig, gates::var_div::DivRoundGate};
 
 use super::super::layers::layer::{Layer, LayerConfig};
 
@@ -20,7 +20,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for MulCircuit {
     builder: &mut CircuitBuilder<F, D>,
     tensors: &Vec<Array<Rc<Target>, IxDyn>>,
     _constants: &HashMap<i64, Rc<F>>,
-    _gadget_config: Rc<GadgetConfig>,
+    gadget_config: Rc<GadgetConfig>,
     _layer_config: &LayerConfig,
   ) -> Vec<Array<Rc<Target>, IxDyn>> {
     let inp = &tensors[0];
@@ -29,11 +29,34 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for MulCircuit {
 
     let flat_inp = Array::from_iter(inp.iter().cloned());
 
-    let mut outp = vec![];
+    let mut mul_outp = vec![];
 
     for i in 0..flat_inp.len() {
-      outp.push(Rc::new(builder.mul(*flat_inp[i], *mul[i % mul.len()])))
+      mul_outp.push(Rc::new(builder.mul(*flat_inp[i], *mul[i % mul.len()])))
     }
+
+    let mut div_gates = vec![];
+    let div_outp_min_val = F::from_canonical_u64(gadget_config.div_outp_min_val as u64);
+    let shift_min_val = F::from_canonical_u64(gadget_config.shift_min_val as u64);
+    for i in 0..mul_outp.len() {
+      let div_gate = builder.add_gate(
+        DivRoundGate { num_ops: 1 },
+        vec![
+          F::from_canonical_u64(gadget_config.scale_factor as u64),
+          shift_min_val,
+          div_outp_min_val,
+        ],
+      );
+      div_gates.push(div_gate);
+      builder.connect(
+        *mul_outp[i],
+        Target::wire(div_gate, DivRoundGate::wire_input()),
+      );
+    }
+
+    let outp = (0..mul_outp.len())
+      .map(|i| Rc::new(Target::wire(div_gates[i], DivRoundGate::wire_output())))
+      .collect::<Vec<_>>();
 
     vec![Array::from_shape_vec(IxDyn(inp.shape()), outp).unwrap()]
   }

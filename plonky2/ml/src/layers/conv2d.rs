@@ -1,8 +1,12 @@
 use std::{collections::HashMap, rc::Rc};
 
-use crate::{gadgets::{
-  gadget::{GadgetConfig, Gadget}, bias_div_round_relu6::BiasDivRoundRelu6Circuit
-}, gates::dot_prod::{DOTPROD_SIZE, DotProductGate}};
+use crate::{
+  gadgets::{
+    bias_div_round_relu6::BiasDivRoundRelu6Circuit,
+    gadget::{Gadget, GadgetConfig},
+  },
+  gates::dot_prod::{DotProductGate, DOTPROD_SIZE},
+};
 use ndarray::{Array, IxDyn};
 use plonky2::{
   field::extension::Extendable, hash::hash_types::RichField, iop::target::Target,
@@ -100,7 +104,6 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for Conv2DCircuit
     let conv_config = &Self::param_vec_to_config(self.config.layer_params.clone());
     let zero_target = builder.zero();
     let zero = constants.get(&0).unwrap();
-    println!("zero: {}", zero);
     let z_target = builder.constant(**zero);
 
     let inp = &tensors[0];
@@ -117,8 +120,6 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for Conv2DCircuit
     assert!(ch <= DOTPROD_SIZE);
     assert!(ch == cw);
 
-    println!("ch: {}, cw: {}", ch, cw);
-
     let (oh, ow) = Self::out_hw(
       h,
       w,
@@ -128,7 +129,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for Conv2DCircuit
       cw,
       conv_config.padding,
     );
-    println!("oh: {}, ow: {}", oh, ow);
+
     let batch_size = inp.shape()[0];
 
     let gate = DotProductGate::construct();
@@ -136,16 +137,16 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for Conv2DCircuit
     let flat_rows = (0..batch_size * oh * ow * oc * ic)
       .map(|_| builder.add_gate(gate.clone(), vec![**zero]))
       .collect::<Vec<_>>();
-    let rows = Array::from_shape_vec(IxDyn(&[batch_size, oc, oh, ow, ic]), flat_rows).unwrap();
+    let rows = Array::from_shape_vec(IxDyn(&[batch_size, oh, ow, oc, ic]), flat_rows).unwrap();
 
+    // TODO: assumes padding 0, stride 1
     let mut conv_outp = vec![];
     for batch in 0..batch_size {
-      for chan_out in 0..oc {
-        for x in 0..oh {
-          for y in 0..ow {
+      for x in 0..oh {
+        for y in 0..ow {
+          for chan_out in 0..oc {
             for chan_in in 0..ic {
-              let row = rows[[batch, chan_out, x, y, chan_in]];
-              // println!("row: {}, c_o: {}, x: {}, y: {}, c_i: {}", row, chan_out, x, y, chan_in);
+              let row = rows[[batch, x, y, chan_out, chan_in]];
               for i in 0..DOTPROD_SIZE {
                 for j in 0..DOTPROD_SIZE {
                   if i < ch && j < cw {
@@ -171,8 +172,11 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for Conv2DCircuit
               }
             }
             conv_outp.push(builder.add_many((0..ic).map(|i| {
+              // if chan_out == 7 && x == 23 && y == 17 {
+              //   println!("outp: {}, {}, {}, {}, {}", batch, chan_out, x, y, i);
+              // }
               Target::wire(
-                rows[[batch, chan_out, x, y, i]],
+                rows[[batch, x, y, chan_out, i]],
                 DotProductGate::wire_output(),
               )
             })));

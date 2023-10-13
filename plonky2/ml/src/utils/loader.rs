@@ -53,11 +53,31 @@ pub fn load_model_msgpack(config_path: &str, inp_path: &str) -> ModelMsgpack {
     let mut reader = BufReader::new(file);
     rmp_serde::from_read(&mut reader).unwrap()
   };
-  let mut public_inp_idxs = vec![];
+
   for tensor in inp {
     model.tensors.push(tensor);
-    public_inp_idxs.push(model.tensors.len() - 1);
   }
 
   model
+}
+
+// debugging use
+fn filter_top_k_layers(model: ModelMsgpack, k: usize) -> ModelMsgpack {
+  let new_layers = &model.layers[0..k];
+  let mut tensor_idxes = vec![];
+  for layer in new_layers {
+    tensor_idxes.extend(layer.inp_idxes.clone());
+  }
+  let mut new_tensors = vec![];
+  for t in model.tensors {
+    if tensor_idxes.contains(&t.idx) {
+      new_tensors.push(t);
+    }
+  }
+  ModelMsgpack {
+    out_idxes: new_layers[k-1].out_idxes.clone(),
+    tensors: new_tensors,
+    layers: new_layers.to_vec(),
+    ..model
+  }
 }
