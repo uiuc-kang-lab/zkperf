@@ -7,15 +7,25 @@ use plonky2::{
   plonk::circuit_builder::CircuitBuilder,
 };
 
-use crate::gadgets::gadget::GadgetConfig;
+use crate::gadgets::gadget::{GadgetConfig, GadgetType};
 
 #[derive(Clone, Copy, Debug, Default, Hash, Eq, PartialEq)]
 pub enum LayerType {
-  #[default]
+  // TODO hopefully this default never triggers
   Add,
   AvgPool2D,
+  Concatenation,
   Conv2D,
+  FullyConnected,
+  Logistic,
+  Gather,
   Mul,
+  #[default]
+  Noop,
+  Pack,
+  Reshape,
+  Split,
+  Transpose,
 }
 
 // NOTE: This is the same order as the TFLite schema
@@ -25,6 +35,7 @@ pub enum ActivationType {
   #[default]
   None,
   Relu6,
+  Relu,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -47,4 +58,8 @@ pub trait Layer<F: RichField + Extendable<D>, const D: usize> {
     gadget_config: Rc<GadgetConfig>,
     layer_config: &LayerConfig,
   ) -> Vec<Array<Rc<Target>, IxDyn>>;
+}
+
+pub trait GadgetConsumer {
+  fn used_gadgets(&self, layer_params: Vec<i64>) -> Vec<GadgetType>;
 }

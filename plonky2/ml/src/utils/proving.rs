@@ -8,7 +8,7 @@ use plonky2::{
   iop::witness::{PartialWitness, Witness},
   plonk::{
     circuit_builder::CircuitBuilder,
-    config::{AlgebraicHasher, GenericConfig},
+    config::GenericConfig,
   },
 };
 
@@ -18,9 +18,7 @@ pub fn time_circuit<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, co
   circuit: ModelCircuit,
   mut builder: CircuitBuilder<F, D>,
   pw: PartialWitness<F>,
-) where
-  C::Hasher: AlgebraicHasher<F>,
-{
+) {
   let result_targets = circuit.construct(&mut builder);
   let pw2 = pw.clone();
 

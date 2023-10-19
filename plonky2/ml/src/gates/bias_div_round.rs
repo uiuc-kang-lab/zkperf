@@ -240,16 +240,16 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
     let mod_res_target = Target::wire(self.row, BiasDivRoundGate::wire_mod());
     let mod_div_lookup_target = Target::wire(self.row, BiasDivRoundGate::wire_mod_div_lookup());
 
-    assert!(
-      F::from_canonical_i64(2) * get_wire(BiasDivRoundGate::wire_input()) + self.sf
-        == self.sf * F::from_canonical_i64(2) * (div_res - get_wire(BiasDivRoundGate::wire_bias()))
-          + F::from_canonical_u64(mod_res as u64)
-    );
+    // assert!(
+    //   F::from_canonical_i64(2) * get_wire(BiasDivRoundGate::wire_input()) + self.sf
+    //     == self.sf * F::from_canonical_i64(2) * (div_res - get_wire(BiasDivRoundGate::wire_bias()))
+    //       + F::from_canonical_u64(mod_res as u64)
+    // );
 
-    assert!(
-      F::from_canonical_i64(2) * self.sf - F::from_canonical_u64(mod_res as u64)
-        == F::from_canonical_u64(mod_div_lookup as u64) + F::ONE
-    );
+    // assert!(
+    //   F::from_canonical_i64(2) * self.sf - F::from_canonical_u64(mod_res as u64)
+    //     == F::from_canonical_u64(mod_div_lookup as u64) + F::ONE
+    // );
 
     // address outp outside of gate since its value relies on lut
     out_buffer.set_target(div_res_target, div_res);

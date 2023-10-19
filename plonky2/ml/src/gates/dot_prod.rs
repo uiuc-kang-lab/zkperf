@@ -28,32 +28,52 @@ impl DotProductGate {
     Self {}
   }
 
-  pub fn wire_ith_row_input_start(i: usize) -> usize {
-    2 * i * DOTPROD_SIZE
+  // pub fn wire_input_start() -> usize {
+  //   0
+  // }
+
+  // pub fn wire_weight_end() -> usize {
+  //   2 * DOTPROD_SIZE * DOTPROD_SIZE - 1
+  // }
+
+  // pub fn wire_ith_input(i: usize, j: usize) -> usize {
+  //   i * DOTPROD_SIZE + j
+  // }
+
+  // pub fn wire_ith_weight(i: usize, j: usize) -> usize {
+  //   (DOTPROD_SIZE + i) * DOTPROD_SIZE + j
+  // }
+
+  // pub fn wire_ith_input(i: usize) -> usize {
+  //   i
+  // }
+
+  // pub fn wire_ith_weight(i: usize) -> usize {
+  //   DOTPROD_SIZE * DOTPROD_SIZE + i
+  // }
+
+  // pub fn wire_output() -> usize {
+  //   2 * DOTPROD_SIZE * DOTPROD_SIZE
+  // }
+
+  pub fn wire_input_start() -> usize {
+    0
   }
 
-  pub fn wire_ith_row_input_end(i: usize) -> usize {
-    (2 * i + 1) * DOTPROD_SIZE - 1
+  pub fn wire_weight_end() -> usize {
+    2 * DOTPROD_SIZE - 1
   }
 
-  pub fn wire_ith_row_weight_start(i: usize) -> usize {
-    (2 * i + 1) * DOTPROD_SIZE
+  pub fn wire_ith_input(i: usize) -> usize {
+    i
   }
 
-  pub fn wire_ith_row_weight_end(i: usize) -> usize {
-    2 * (i + 1) * DOTPROD_SIZE - 1
-  }
-
-  pub fn wire_ijth_input(i: usize, j: usize) -> usize {
-    2 * i * DOTPROD_SIZE + j
-  }
-
-  pub fn wire_ijth_weight(i: usize, j: usize) -> usize {
-    (2 * i + 1) * DOTPROD_SIZE + j
+  pub fn wire_ith_weight(i: usize) -> usize {
+    DOTPROD_SIZE + i
   }
 
   pub fn wire_output() -> usize {
-    2 * DOTPROD_SIZE * DOTPROD_SIZE
+    2 * DOTPROD_SIZE
   }
 }
 
@@ -68,18 +88,16 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for DotProductGate
 
   fn deserialize(src: &mut Buffer, _common_data: &CommonCircuitData<F, D>) -> IoResult<Self> {
     let _n = src.read_usize()?;
-    Ok(Self { })
+    Ok(Self {})
   }
 
   fn eval_unfiltered(&self, vars: EvaluationVars<F, D>) -> Vec<F::Extension> {
     let zero = vars.local_constants[0];
     let mut computed_output: <F as Extendable<D>>::Extension = F::Extension::ZEROS;
     for i in 0..DOTPROD_SIZE {
-      for j in 0..DOTPROD_SIZE {
-        let input = vars.local_wires[Self::wire_ijth_input(i, j)];
-        let weight = vars.local_wires[Self::wire_ijth_weight(i, j)];
-        computed_output += (input - zero) * weight;
-      }
+      let input = vars.local_wires[Self::wire_ith_input(i)];
+      let weight = vars.local_wires[Self::wire_ith_weight(i)];
+      computed_output += (input - zero) * weight;
     }
     let output = vars.local_wires[Self::wire_output()];
     vec![output - computed_output]
@@ -106,16 +124,11 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for DotProductGate
 
     let pairs = (0..DOTPROD_SIZE)
       .map(|i| {
-        (0..DOTPROD_SIZE)
-          .map(|j| {
-            let input = vars.local_wires[Self::wire_ijth_input(i, j)];
-            let weight = vars.local_wires[Self::wire_ijth_weight(i, j)];
-            let input_zero = builder.sub_extension(input, zero);
-            builder.mul_extension(input_zero, weight)
-          })
-          .collect::<Vec<_>>()
+        let input = vars.local_wires[Self::wire_ith_input(i)];
+        let weight = vars.local_wires[Self::wire_ith_weight(i)];
+        let input_zero = builder.sub_extension(input, zero);
+        builder.mul_extension(input_zero, weight)
       })
-      .flatten()
       .collect::<Vec<_>>();
     let computed_output = builder.add_many_extension(pairs);
 
@@ -136,7 +149,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for DotProductGate
   }
 
   fn num_wires(&self) -> usize {
-    2 * DOTPROD_SIZE * DOTPROD_SIZE + 1
+    2 * DOTPROD_SIZE + 1
   }
 
   fn num_constants(&self) -> usize {
@@ -161,11 +174,9 @@ impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D> for
     let mut computed_output = P::ZEROS;
     let zero = vars.local_constants[0];
     for i in 0..DOTPROD_SIZE {
-      for j in 0..DOTPROD_SIZE {
-        let input = vars.local_wires[Self::wire_ijth_input(i, j)];
-        let weight = vars.local_wires[Self::wire_ijth_weight(i, j)];
-        computed_output += (input - zero) * weight;
-      }
+      let input = vars.local_wires[Self::wire_ith_input(i)];
+      let weight = vars.local_wires[Self::wire_ith_weight(i)];
+      computed_output += (input - zero) * weight;
     }
     let output = vars.local_wires[Self::wire_output()];
     yield_constr.one(output - computed_output);
@@ -186,7 +197,7 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
   }
 
   fn dependencies(&self) -> Vec<Target> {
-    (DotProductGate::wire_ith_row_input_start(0)..DotProductGate::wire_ith_row_weight_end(DOTPROD_SIZE - 1))
+    (DotProductGate::wire_input_start()..DotProductGate::wire_weight_end())
       .map(|i| Target::wire(self.row, i))
       .collect()
   }
@@ -194,14 +205,11 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
   fn run_once(&self, witness: &PartitionWitness<F>, out_buffer: &mut GeneratedValues<F>) {
     let get_wire = |wire: usize| -> F { witness.get_target(Target::wire(self.row, wire)) };
 
-    // println!("gen row: {}", self.row);
     let mut computed_output = F::ZERO;
     for i in 0..DOTPROD_SIZE {
-      for j in 0..DOTPROD_SIZE {
-        let input = get_wire(DotProductGate::wire_ijth_input(i, j));
-        let weight = get_wire(DotProductGate::wire_ijth_weight(i, j));
-        computed_output += (input - self.zero) * weight;
-      }
+      let input = get_wire(DotProductGate::wire_ith_input(i));
+      let weight = get_wire(DotProductGate::wire_ith_weight(i));
+      computed_output += (input - self.zero) * weight;
     }
 
     let output_target = Target::wire(self.row, DotProductGate::wire_output());

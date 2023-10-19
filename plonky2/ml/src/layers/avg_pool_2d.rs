@@ -8,12 +8,14 @@ use plonky2::{
 };
 
 use crate::{
-  gadgets::gadget::GadgetConfig,
-  gates::var_div::DivRoundGate,
+  gadgets::{
+    gadget::{Gadget, GadgetConfig, GadgetType},
+    var_div::DivRoundCircuit,
+  },
   layers::{conv2d::Conv2DCircuit, conv2d::PaddingEnum, layer::LayerConfig},
 };
 
-use super::layer::Layer;
+use super::layer::{GadgetConsumer, Layer};
 
 pub struct AvgPool2DCircuit {}
 
@@ -63,30 +65,24 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for AvgPool2DCirc
       }
     }
 
-    let mut div_gates = vec![];
-    let div_outp_min_val = F::from_canonical_u64(gadget_config.div_outp_min_val as u64);
-    let shift_min_val = F::from_canonical_u64(gadget_config.shift_min_val as u64);
-    for i in 0..sum_outp.len() {
-      let div_gate = builder.add_gate(
-        DivRoundGate { num_ops: 1 },
-        vec![
-          F::from_canonical_u64(div as u64),
-          shift_min_val,
-          div_outp_min_val,
-        ],
-      );
-      div_gates.push(div_gate);
-      // println!("div_gate: {}, outp: {}", div_gate, i);
-      builder.connect(
-        sum_outp[i],
-        Target::wire(div_gate, DivRoundGate::wire_input()),
-      );
-    }
+    let sum_ref = sum_outp.iter().collect::<Vec<_>>();
 
-    let outp = (0..sum_outp.len())
-      .map(|i| Rc::new(Target::wire(div_gates[i], DivRoundGate::wire_output())))
-      .collect::<Vec<_>>();
+    let div_gadget = DivRoundCircuit::construct(gadget_config.clone());
+    let div_outp = div_gadget.make_circuit(
+      builder,
+      &vec![sum_ref],
+      &vec![F::from_canonical_usize(div)],
+      gadget_config,
+    );
+
+    let outp = div_outp.iter().map(|t| Rc::new(*t)).collect::<Vec<_>>();
 
     vec![Array::from_shape_vec(IxDyn(&vec![batch_size, oh, ow, c]), outp).unwrap()]
+  }
+}
+
+impl GadgetConsumer for AvgPool2DCircuit {
+  fn used_gadgets(&self, _layer_params: Vec<i64>) -> Vec<crate::gadgets::gadget::GadgetType> {
+    vec![GadgetType::DivRound]
   }
 }

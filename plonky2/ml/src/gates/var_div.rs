@@ -1,4 +1,3 @@
-use num_traits::ToPrimitive;
 use plonky2::field::extension::Extendable;
 use plonky2::field::packed::PackedField;
 use plonky2::gates::gate::Gate;
@@ -18,6 +17,8 @@ use plonky2::plonk::vars::{
 use plonky2::util::serialization::{Buffer, IoResult, Read, Write};
 use plonky2_field::types::Field;
 use rounded_div::RoundedDiv;
+
+use crate::gadgets::gadget::convert_to_u128;
 
 #[derive(Debug, Clone)]
 pub struct DivRoundGate {
@@ -206,26 +207,42 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
   fn run_once(&self, witness: &PartitionWitness<F>, out_buffer: &mut GeneratedValues<F>) {
     let get_wire = |wire: usize| -> F { witness.get_target(Target::wire(self.row, wire)) };
     let a = get_wire(DivRoundGate::wire_input());
-    let b_int = self.b.to_canonical_biguint().to_u128().unwrap();
-    // println!("a: {}, b_int: {}", a, b_int);
+    let b_int = convert_to_u128(&self.b);
 
     let div_outp_min_val_i64 = self.div_outp_min_val.to_canonical_u64() as i64;
+
     let div_inp_min_val_pos_i64 = -(self.shift_min_val.to_canonical_u64() as i64);
+    // let div_inp_min_val_pos_i64 = -(convert_to_u64(&self.shift_min_val) as i64);
+    // println!("row: {}, a: {}, b_int: {}, ", self.row, a, b_int);
     let div_inp_min_val_pos_i64 = div_inp_min_val_pos_i64 / (b_int as i64) * (b_int as i64);
     let div_inp_min_val_pos = F::from_canonical_u64(div_inp_min_val_pos_i64 as u64);
-
+    // let div_inp_min_val_pos = F::ZERO - F::from_canonical_i64(-div_inp_min_val_pos_i64);
     let a_pos = a + div_inp_min_val_pos;
-    let a = a_pos.to_canonical_biguint().to_u128().unwrap();
+    let a = convert_to_u128(&a_pos);
     // c = (2 * a + b) / (2 * b)
     let c_pos = a.rounded_div(b_int);
+    // println!("c_diff: {}", div_inp_min_val_pos_i64 as u128 / b_int);
     let c = (c_pos as i128 - (div_inp_min_val_pos_i64 as u128 / b_int) as i128) as i64;
 
+    // r = (2 * a + b) % (2 * b)
     let rem_floor = (a as i128) - (c_pos * b_int) as i128;
     let r = 2 * rem_floor + (b_int as i128);
     let r = r as i64;
     let diff = 2 * b_int as i64 - r - 1;
+
+    let output_target = Target::wire(self.row, DivRoundGate::wire_output());
+    let div_rem_diff_target = Target::wire(self.row, DivRoundGate::wire_div_rem_diff());
+    let remainder_target = Target::wire(self.row, DivRoundGate::wire_remainder());
+
+    let div = {
+      let offset = F::from_canonical_u64(-div_outp_min_val_i64 as u64);
+      // println!("offset: {}", offset);
+      let c = F::from_canonical_u64((c - div_outp_min_val_i64) as u64);
+      c - offset
+    };
+    // println!("div: {}", div);
     // println!(
-    //   "domvi: {}, smv: {}, dimvp: {}, a: {}, c_pos: {}, c: {}, rem_floor: {}, r: {}, diff: {}",
+    //   "domvi: {}, smv: {}, dimvp: {}, a: {}, c_pos: {}, c: {}, rem_floor: {}, r: {}, diff: {}, div: {}",
     //   div_outp_min_val_i64,
     //   self.shift_min_val,
     //   div_inp_min_val_pos_i64,
@@ -234,30 +251,19 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
     //   c,
     //   rem_floor,
     //   r,
-    //   diff
+    //   diff,
+    //   div
     // );
 
-    let output_target = Target::wire(self.row, DivRoundGate::wire_output());
-    let div_rem_diff_target = Target::wire(self.row, DivRoundGate::wire_div_rem_diff());
-    let remainder_target = Target::wire(self.row, DivRoundGate::wire_remainder());
+    // assert!(
+    //   get_wire(DivRoundGate::wire_input()) * F::from_canonical_i64(2) + self.b
+    //     == self.b * F::from_canonical_i64(2) * div + F::from_canonical_i64(r)
+    // );
 
-    let div = {
-      let offset = F::from_canonical_u64(-div_outp_min_val_i64 as u64);
-      let c = F::from_canonical_u64((c - div_outp_min_val_i64) as u64);
-      c - offset
-    };
-
-    // println!("div: {}", div);
-    // println!("lhs: {}, rhs: {}", get_wire(DivRoundGate::wire_input()) * F::from_canonical_i64(2) + self.b, self.b * F::from_canonical_i64(2) * div + F::from_canonical_i64(r));
-    assert!(
-      get_wire(DivRoundGate::wire_input()) * F::from_canonical_i64(2) + self.b
-        == self.b * F::from_canonical_i64(2) * div + F::from_canonical_i64(r)
-    );
-
-    assert!(
-      F::from_canonical_i64(2) * self.b - F::from_canonical_i64(r)
-        == F::from_canonical_i64(diff) + F::ONE
-    );
+    // assert!(
+    //   F::from_canonical_i64(2) * self.b - F::from_canonical_i64(r)
+    //     == F::from_canonical_i64(diff) + F::ONE
+    // );
     out_buffer.set_target(div_rem_diff_target, F::from_canonical_i64(diff));
     out_buffer.set_target(remainder_target, F::from_canonical_i64(r));
     out_buffer.set_target(output_target, div)

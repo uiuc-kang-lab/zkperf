@@ -58,7 +58,12 @@ pub fn load_model_msgpack(config_path: &str, inp_path: &str) -> ModelMsgpack {
     model.tensors.push(tensor);
   }
 
+  if model.num_random.is_none() {
+    model.num_random = Some(20001)
+  };
+
   model
+  // filter_top_k_layers(model, 15)
 }
 
 // debugging use

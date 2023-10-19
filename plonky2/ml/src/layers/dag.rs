@@ -3,11 +3,11 @@ use std::{collections::HashMap, marker::PhantomData, rc::Rc};
 use crate::{
   gadgets::gadget::GadgetConfig,
   layers::{
-    add::AddCircuit,
+    arithmetic::add::AddCircuit,
+    arithmetic::mul::MulCircuit,
     avg_pool_2d::AvgPool2DCircuit,
     conv2d::Conv2DCircuit,
-    layer::{Layer, LayerType},
-    mul::MulCircuit,
+    layer::{Layer, LayerType}, shape::{concatenation::ConcatenationCircuit, reshape::ReshapeCircuit, transpose::TransposeCircuit, pack::PackCircuit, split::SplitCircuit, gather::GatherCircuit}, fully_connected::{FullyConnectedCircuit, FullyConnectedConfig}, noop::NoopCircuit, logistic::LogisticCircuit,
   },
 };
 use ndarray::{Array, IxDyn};
@@ -67,9 +67,6 @@ impl<F: RichField + Extendable<D>, const D: usize> DAGLayerCircuit<F, D> {
         .iter()
         .map(|idx| tensor_map.get(idx).unwrap().clone())
         .collect::<Vec<_>>();
-      for v in &vec_inps {
-        println!("shape: {:?}", v.shape());
-      }
       let out = match layer_type {
         LayerType::Add => {
           let add_circuit = AddCircuit {};
@@ -91,6 +88,16 @@ impl<F: RichField + Extendable<D>, const D: usize> DAGLayerCircuit<F, D> {
             &layer_config,
           )
         }
+        LayerType::Concatenation => {
+          let concat_circuit = ConcatenationCircuit {};
+          concat_circuit.make_circuit(
+            builder,
+            &vec_inps,
+            constants,
+            gadget_config.clone(),
+            &layer_config,
+          )
+        }
         LayerType::Conv2D => {
           let conv_2d_circuit = Conv2DCircuit {
             config: layer_config.clone(),
@@ -103,9 +110,91 @@ impl<F: RichField + Extendable<D>, const D: usize> DAGLayerCircuit<F, D> {
             &layer_config,
           )
         }
+        LayerType::FullyConnected => {
+          let fc_circuit = FullyConnectedCircuit {
+            config: FullyConnectedConfig::construct(true),
+          };
+          fc_circuit.make_circuit(
+            builder,
+            &vec_inps,
+            constants,
+            gadget_config.clone(),
+            &layer_config,
+          )
+        }
+        LayerType::Gather => {
+          let gather_circuit = GatherCircuit {};
+          gather_circuit.make_circuit(
+            builder,
+            &vec_inps,
+            constants,
+            gadget_config.clone(),
+            &layer_config,
+          )
+        }
+        LayerType::Logistic => {
+          let logistic_circuit = LogisticCircuit {};
+          logistic_circuit.make_circuit(
+            builder,
+            &vec_inps,
+            constants,
+            gadget_config.clone(),
+            &layer_config,
+          )
+        }
         LayerType::Mul => {
           let mul_circuit = MulCircuit {};
           mul_circuit.make_circuit(
+            builder,
+            &vec_inps,
+            constants,
+            gadget_config.clone(),
+            &layer_config,
+          )
+        }
+        LayerType::Noop => {
+          let noop_circuit = NoopCircuit {};
+          noop_circuit.make_circuit(
+            builder,
+            &vec_inps,
+            constants,
+            gadget_config.clone(),
+            &layer_config,
+          )
+        }
+        LayerType::Pack => {
+          let pack_circuit = PackCircuit {};
+          pack_circuit.make_circuit(
+            builder,
+            &vec_inps,
+            constants,
+            gadget_config.clone(),
+            &layer_config,
+          )
+        }
+        LayerType::Reshape => {
+          let reshape_circuit = ReshapeCircuit {};
+          reshape_circuit.make_circuit(
+            builder,
+            &vec_inps,
+            constants,
+            gadget_config.clone(),
+            &layer_config,
+          )
+        }
+        LayerType::Split => {
+          let split_circuit = SplitCircuit {};
+          split_circuit.make_circuit(
+            builder,
+            &vec_inps,
+            constants,
+            gadget_config.clone(),
+            &layer_config,
+          )
+        }
+        LayerType::Transpose => {
+          let transpose_circuit = TransposeCircuit {};
+          transpose_circuit.make_circuit(
             builder,
             &vec_inps,
             constants,
