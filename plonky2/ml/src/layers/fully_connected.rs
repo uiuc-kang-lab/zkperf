@@ -8,7 +8,6 @@ use plonky2_field::extension::Extendable;
 
 use crate::{
   gadgets::{
-    dot_prod::DotProductCircuit,
     gadget::{Gadget, GadgetConfig, GadgetType},
     nonlinear::relu::ReluCircuit,
     var_div::DivRoundCircuit,
@@ -222,8 +221,6 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for FullyConnecte
         .get(&(gadget_config.scale_factor as i64))
         .unwrap()
         .as_ref();
-      println!("gadget sf: {}", gadget_config.scale_factor);
-      println!("constants sf: {}", sf);
       let mm_div =
         div_gadget.make_circuit(builder, &vec![mm_flat], &vec![*sf], gadget_config.clone());
 

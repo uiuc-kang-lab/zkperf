@@ -1,14 +1,10 @@
 use std::{collections::HashMap, rc::Rc};
 
-use crate::{
-  gadgets::{
+use crate::gadgets::{
     bias_div_round_relu6::BiasDivRoundRelu6Circuit,
     dot_prod::DotProductCircuit,
     gadget::{Gadget, GadgetConfig, GadgetType},
-  },
-  gates::dot_prod::{DotProductGate, DOTPROD_SIZE},
-  layers::fully_connected::{FullyConnectedCircuit, FullyConnectedConfig},
-};
+  };
 use ndarray::{Array, Axis, IxDyn, Slice};
 use plonky2::{
   field::extension::Extendable, hash::hash_types::RichField, iop::target::Target,
@@ -155,96 +151,70 @@ impl Conv2DCircuit {
     tensors: &Vec<Array<Rc<G>, IxDyn>>,
     zero: Rc<G>,
   ) -> (Vec<Vec<Rc<G>>>, Vec<Vec<Rc<G>>>, Vec<Rc<G>>) {
-    // assert_eq!(tensors.len(), 3);
-    assert!(tensors.len() <= 3);
+    let input = &tensors[0];
+    let weights = &tensors[1];
+    let biases = &tensors[2];
+
+    assert_eq!(tensors.len(), 3);
+    assert_eq!(input.shape().len(), 4);
+    assert_eq!(weights.shape().len(), 4);
+    assert_eq!(input.shape()[0], 1);
 
     let conv_config = &Self::param_vec_to_config(self.config.layer_params.clone());
+    let strides = conv_config.stride;
 
-    let inp = &tensors[0];
-    let weights = &tensors[1];
-    let zero_arr = Array::from_elem(IxDyn(&vec![1]), zero.clone());
-    let biases = if tensors.len() == 3 {
-      &tensors[2]
-    } else {
-      &zero_arr
-    };
-
-    let h: usize = inp.shape()[1];
-    let w: usize = inp.shape()[2];
-
+    let h: usize = input.shape()[1];
+    let w: usize = input.shape()[2];
     let ch: usize = weights.shape()[1];
     let cw: usize = weights.shape()[2];
-
     let (si, sj) = conv_config.stride;
-
-    // B, H, W, C
-    assert_eq!(inp.shape().len(), 4);
+    let (oh, ow) = Self::out_hw(h, w, si, sj, ch, cw, conv_config.padding);
 
     let (ph, pw) = if conv_config.padding == PaddingEnum::Same {
       Self::get_padding(h, w, si, sj, ch, cw)
     } else {
       ((0, 0), (0, 0))
     };
-    // println!("Padding: {:?}", (ph, pw));
+
     let padding = vec![[0, 0], [ph.0, ph.1], [pw.0, pw.1], [0, 0]];
 
-    let inp_pad = Self::pad(&inp, padding, &zero);
-
-    let (oh, ow) = Self::out_hw(h, w, si, sj, ch, cw, conv_config.padding);
+    let inp_pad = Self::pad(&input, padding, &zero);
 
     let mut inp_cells = vec![];
-    let mut weights_cells = vec![];
+    let mut weight_cells = vec![];
     let mut biases_cells = vec![];
-    let mut input_row_idx = 0;
-    let mut weight_row_idx = 0;
+    let mut row_idx = 0;
 
-    // (output_channels x inp_channels * C_H * C_W)
-    for chan_out in 0..weights.shape()[0] {
-      weights_cells.push(vec![]);
-      for ci in 0..weights.shape()[1] {
-        for cj in 0..weights.shape()[2] {
-          for ck in 0..weights.shape()[3] {
-            weights_cells[weight_row_idx].push(weights[[chan_out, ci, cj, ck]].clone());
-          }
-        }
-      }
-      weight_row_idx += 1;
-    }
-
-    // (O_H * O_W x inp_channels * C_H * C_W)
-    for batch in 0..inp.shape()[0] {
-      for i in 0..oh {
-        for j in 0..ow {
+    for i in 0..oh {
+      for j in 0..ow {
+        for chan_out in 0..weights.shape()[0] {
           inp_cells.push(vec![]);
-          for ci in 0..weights.shape()[1] {
-            for cj in 0..weights.shape()[2] {
-              for ck in 0..weights.shape()[3] {
-                let idx_i = i * si + ci;
-                let idx_j = j * sj + cj;
-                inp_cells[input_row_idx].push(inp_pad[[batch, idx_i, idx_j, ck]].clone());
+          weight_cells.push(vec![]);
+          biases_cells.push(biases[[chan_out]].clone());
+          for chan_in in 0..weights.shape()[3] {
+            for ci in 0..weights.shape()[1] {
+              for cj in 0..weights.shape()[2] {
+                let idx_i = i * strides.0 + ci;
+                let idx_j = j * strides.1 + cj;
+
+                // println!("i: {}, {}, {}, {}", 0, idx_i, idx_j, chan_in);
+                // println!("w: {}, {}, {}, {}", chan_out, ci, cj, chan_in);
+                inp_cells[row_idx].push(inp_pad[[0, idx_i, idx_j, chan_in]].clone());
+                weight_cells[row_idx].push(weights[[chan_out, ci, cj, chan_in]].clone());
               }
             }
           }
-          input_row_idx += 1;
+          row_idx += 1;
         }
       }
     }
+    println!(
+      "len: {}, prod: {}",
+      inp_cells.len(),
+      oh * ow * weights.shape()[0] * weights.shape()[3]
+    );
 
-    for _batch in 0..inp.shape()[0] {
-      for _ in 0..oh {
-        for _ in 0..ow {
-          for chan_out in 0..weights.shape()[0] {
-            if tensors.len() == 3 {
-              biases_cells.push(biases[chan_out].clone());
-            } else {
-              biases_cells.push(zero.clone());
-            }
-          }
-        }
-      }
-    }
-
-    (inp_cells, weights_cells, biases_cells)
+    (inp_cells, weight_cells, biases_cells)
   }
 }
 
@@ -255,7 +225,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for Conv2DCircuit
     tensors: &Vec<Array<Rc<Target>, IxDyn>>,
     constants: &HashMap<i64, Rc<F>>,
     gadget_config: Rc<GadgetConfig>,
-    layer_config: &LayerConfig,
+    _layer_config: &LayerConfig,
   ) -> Vec<Array<Rc<Target>, IxDyn>> {
     let conv_config = &Self::param_vec_to_config(self.config.layer_params.clone());
     let zero_t = builder.zero();
@@ -292,63 +262,21 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for Conv2DCircuit
       ConvLayerEnum::DepthwiseConv2D => panic!("DepthwiseConv2D is unimplemented"),
     };
 
-    // let gate = DotProductGate::construct();
-
-    // let flat_rows = (0..batch_size * oh * ow * oc * ic)
-    //   .map(|_| builder.add_gate(gate.clone(), vec![**zero]))
-    //   .collect::<Vec<_>>();
-    // let rows = Array::from_shape_vec(IxDyn(&[batch_size, oh, ow, oc, ic]), flat_rows).unwrap();
-
     let outp_flat = match conv_config.conv_type {
       ConvLayerEnum::Conv2D => {
-        let fc_circuit = FullyConnectedCircuit {
-          config: FullyConnectedConfig::construct(false),
-        };
+        let dot_prod_circuit = DotProductCircuit::construct(gadget_config.clone());
+        let mut outp_flat = vec![];
+        for (inp_vec, weight_vec) in splat_inp.iter().zip(splat_weights.iter()) {
+          let inp_vec = inp_vec.iter().map(|x| x.as_ref()).collect::<Vec<_>>();
+          let weight_vec = weight_vec.iter().map(|x| x.as_ref()).collect::<Vec<_>>();
+          let vec_inputs = vec![inp_vec, weight_vec];
+          let constants = vec![**zero];
+          let outp =
+            dot_prod_circuit.make_circuit(builder, &vec_inputs, &constants, gadget_config.clone());
+          outp_flat.push(outp[0].clone());
+        }
+        println!("outp_flat: {:?}", outp_flat.len());
 
-        let conv_size = splat_inp[0].len();
-        // let dp_circuit = DotProductCircuit {
-        //   _config: gadget_config.clone(),
-        // };
-
-        // let mut dps = vec![];
-        // for i in 0..conv_size {
-        //   let inp = splat_inp[i].iter().map(|x| &**x).collect::<Vec<_>>();
-        //   let weights = splat_weights[i].iter().map(|x| &**x).collect::<Vec<_>>();
-        //   dps.push(dp_circuit.make_circuit(
-        //     builder,
-        //     &vec![inp, weights],
-        //     &vec![**zero],
-        //     gadget_config.clone(),
-        //   ))
-        // }
-
-        let flattened_inp: Vec<_> = splat_inp.into_iter().flat_map(|x| x.into_iter()).collect();
-        let flattened_weights = splat_weights
-          .into_iter()
-          .flat_map(|x| x.into_iter())
-          .collect::<Vec<_>>();
-
-        let out_channels = weights.shape()[0];
-        let inp_array =
-          Array::from_shape_vec(IxDyn(&vec![batch_size * oh * ow, conv_size]), flattened_inp)
-            .unwrap();
-        let weights_array =
-          Array::from_shape_vec(IxDyn(&vec![out_channels, conv_size]), flattened_weights).unwrap();
-
-        let outp_slice = fc_circuit.make_circuit(
-          builder,
-          &vec![weights_array, inp_array],
-          constants,
-          gadget_config.clone(),
-          layer_config,
-        );
-
-        let outp_flat = outp_slice[0]
-          .t()
-          .into_iter()
-          .map(|x| (**x).clone())
-          .collect::<Vec<_>>();
-        // let outp_flat : Vec<Target>= dps.into_iter().flat_map(|x| x.into_iter()).collect();
         outp_flat
       }
       ConvLayerEnum::DepthwiseConv2D => panic!("DepthwiseConv2D is unimplemented"),
@@ -425,6 +353,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for Conv2DCircuit
     };
 
     let outp = outp.into_iter().map(|x| x).collect::<Vec<_>>();
+    println!("outp: {}", outp.len());
     vec![Array::from_shape_vec(IxDyn(&vec![batch_size, oh, ow, oc]), outp).unwrap()]
   }
 }

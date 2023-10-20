@@ -5,9 +5,9 @@ use plonky2::hash::hash_types::RichField;
 use plonky2::iop::target::Target;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 
-use crate::gates::{dot_prod::{DOTPROD_SIZE, DotProductGate}, var_div::DivRoundGate};
+use crate::gates::dot_prod::{DOTPROD_SIZE, DotProductGate};
 
-use super::gadget::{Gadget, GadgetConfig, GadgetType};
+use super::gadget::{Gadget, GadgetConfig};
 
 type DotProductConfig = GadgetConfig;
 
@@ -65,7 +65,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Gadget<F, D> for DotProductCi
       }
       let wire_idx = i % dp_size;
       builder.connect(*inputs[i], Target::wire(dp_gate, DotProductGate::wire_ith_input(wire_idx)));
-      builder.connect(*weights[i], Target::wire(dp_gate, DotProductGate::wire_ith_input(wire_idx)));
+      builder.connect(*weights[i], Target::wire(dp_gate, DotProductGate::wire_ith_weight(wire_idx)));
     }
 
     let outp = builder.add_many(dp_gates.iter().map(|row| Target::wire(*row, DotProductGate::wire_output())));

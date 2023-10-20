@@ -63,7 +63,7 @@ pub fn load_model_msgpack(config_path: &str, inp_path: &str) -> ModelMsgpack {
   };
 
   model
-  // filter_top_k_layers(model, 15)
+  // filter_top_k_layers(model, 1)
 }
 
 // debugging use

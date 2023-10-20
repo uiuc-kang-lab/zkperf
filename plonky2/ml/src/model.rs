@@ -36,10 +36,7 @@ use crate::{
       reshape::ReshapeCircuit, split::SplitCircuit, transpose::TransposeCircuit,
     },
   },
-  utils::{
-    helpers::RAND_START_IDX,
-    loader::{load_model_msgpack, ModelMsgpack},
-  },
+  utils::loader::{load_model_msgpack, ModelMsgpack},
 };
 
 lazy_static! {
