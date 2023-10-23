@@ -74,7 +74,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Gadget<F, D> for BiasDivRound
         .map(|d| {
           let i = d as i64;
           let val = map.get(&i).unwrap();
-          (i as u32, *val as u32)
+          (i as u16, *val as u16)
         })
         .collect::<Vec<_>>()
     });

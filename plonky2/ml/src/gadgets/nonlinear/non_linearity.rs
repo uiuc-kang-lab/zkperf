@@ -68,7 +68,7 @@ pub trait NonLinearGadget<F: RichField + Extendable<D>, const D: usize>: Gadget<
               tmp as u64 - shift_pos_i64 as u64
             }
           };
-          (i as u32, val as u32)
+          (i as u16, val as u16)
         })
         .collect::<Vec<_>>()
     });

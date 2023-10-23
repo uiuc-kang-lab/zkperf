@@ -36,7 +36,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Gadget<F, D> for InputLookupC
     let table = Arc::new({
       (0..config.num_rows)
         .map(|d| {
-          (d as u32, d as u32)
+          (d as u16, d as u16)
         })
         .collect::<Vec<_>>()
     });

@@ -28,34 +28,6 @@ impl DotProductGate {
     Self {}
   }
 
-  // pub fn wire_input_start() -> usize {
-  //   0
-  // }
-
-  // pub fn wire_weight_end() -> usize {
-  //   2 * DOTPROD_SIZE * DOTPROD_SIZE - 1
-  // }
-
-  // pub fn wire_ith_input(i: usize, j: usize) -> usize {
-  //   i * DOTPROD_SIZE + j
-  // }
-
-  // pub fn wire_ith_weight(i: usize, j: usize) -> usize {
-  //   (DOTPROD_SIZE + i) * DOTPROD_SIZE + j
-  // }
-
-  // pub fn wire_ith_input(i: usize) -> usize {
-  //   i
-  // }
-
-  // pub fn wire_ith_weight(i: usize) -> usize {
-  //   DOTPROD_SIZE * DOTPROD_SIZE + i
-  // }
-
-  // pub fn wire_output() -> usize {
-  //   2 * DOTPROD_SIZE * DOTPROD_SIZE
-  // }
-
   pub fn wire_input_start() -> usize {
     0
   }
