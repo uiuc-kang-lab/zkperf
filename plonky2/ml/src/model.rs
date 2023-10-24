@@ -34,7 +34,7 @@ use crate::{
     shape::{
       concatenation::ConcatenationCircuit, gather::GatherCircuit, pack::PackCircuit,
       reshape::ReshapeCircuit, split::SplitCircuit, transpose::TransposeCircuit,
-    },
+    }, batch_mat_mul::BatchMatMulCircuit,
   },
   utils::loader::{load_model_msgpack, ModelMsgpack},
 };
@@ -134,6 +134,7 @@ impl ModelCircuit {
     let match_layer = |x: &str| match x {
       "Add" => LayerType::Add,
       "AveragePool2D" => LayerType::AvgPool2D,
+      "BatchMatMul" => LayerType::BatchMatMul,
       "Concatenation" => LayerType::Concatenation,
       "Conv2D" => LayerType::Conv2D,
       "FullyConnected" => LayerType::FullyConnected,
@@ -202,6 +203,7 @@ impl ModelCircuit {
           let layer_gadgets = match layer_type {
             LayerType::Add => Box::new(AddCircuit {}) as Box<dyn GadgetConsumer>,
             LayerType::AvgPool2D => Box::new(AvgPool2DCircuit {}) as Box<dyn GadgetConsumer>,
+            LayerType::BatchMatMul => Box::new(BatchMatMulCircuit {}) as Box<dyn GadgetConsumer>,
             LayerType::Concatenation => {
               Box::new(ConcatenationCircuit {}) as Box<dyn GadgetConsumer>
             }

@@ -7,7 +7,7 @@ use crate::{
     arithmetic::mul::MulCircuit,
     avg_pool_2d::AvgPool2DCircuit,
     conv2d::Conv2DCircuit,
-    layer::{Layer, LayerType}, shape::{concatenation::ConcatenationCircuit, reshape::ReshapeCircuit, transpose::TransposeCircuit, pack::PackCircuit, split::SplitCircuit, gather::GatherCircuit}, fully_connected::{FullyConnectedCircuit, FullyConnectedConfig}, noop::NoopCircuit, logistic::LogisticCircuit,
+    layer::{Layer, LayerType}, shape::{concatenation::ConcatenationCircuit, reshape::ReshapeCircuit, transpose::TransposeCircuit, pack::PackCircuit, split::SplitCircuit, gather::GatherCircuit}, fully_connected::{FullyConnectedCircuit, FullyConnectedConfig}, noop::NoopCircuit, logistic::LogisticCircuit, batch_mat_mul::BatchMatMulCircuit,
   },
 };
 use ndarray::{Array, IxDyn};
@@ -81,6 +81,16 @@ impl<F: RichField + Extendable<D>, const D: usize> DAGLayerCircuit<F, D> {
         LayerType::AvgPool2D => {
           let avg_pool_2d_circuit = AvgPool2DCircuit {};
           avg_pool_2d_circuit.make_circuit(
+            builder,
+            &vec_inps,
+            constants,
+            gadget_config.clone(),
+            &layer_config,
+          )
+        }
+        LayerType::BatchMatMul => {
+          let batch_mat_mul_circuit = BatchMatMulCircuit {};
+          batch_mat_mul_circuit.make_circuit(
             builder,
             &vec_inps,
             constants,

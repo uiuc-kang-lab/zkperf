@@ -14,6 +14,7 @@ pub enum LayerType {
   // TODO hopefully this default never triggers
   Add,
   AvgPool2D,
+  BatchMatMul,
   Concatenation,
   Conv2D,
   FullyConnected,
