@@ -1,4 +1,7 @@
+use log::Level;
 use ndarray::Array;
+use plonky2::plonk::prover::prove;
+use plonky2::util::timing::TimingTree;
 use serde_json::json;
 use std::io::prelude::*;
 use std::{fs::File, io::BufWriter, time::Instant};
@@ -28,18 +31,33 @@ pub fn time_circuit<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, co
   let build_duration = start.elapsed();
   println!("circuit build duration: {:?}", build_duration);
 
-  let proof = data.prove(pw).unwrap();
-  let proof_end = start.elapsed();
-  let proof_duration = proof_end - build_duration;
+  let mut timing = TimingTree::new("prove", Level::Info);
+  // let proof = data.prove(pw, &mut timing).unwrap();
+  let proof = prove::<F, C, D>(
+    &data.prover_only,
+    &data.common,
+    pw,
+    &mut timing).unwrap();
+  timing.pop();
+  timing.print();
+  // let proof_end = start.elapsed();
+  // let proof_duration = proof_end - build_duration;
+  let proof_duration = timing.duration();
   println!("Proving time: {:?}", proof_duration);
 
   let proof_bytes = proof.to_bytes();
   let proof_len = proof_bytes.len();
   println!("Proof size: {} bytes", proof_len);
 
+  let mut timing = TimingTree::new("verify", Level::Info);
   data.verify(proof.clone()).expect("verify error");
-  let verify_end = start.elapsed();
-  let verify_duration = verify_end - proof_end;
+  // let verify_end = start.elapsed();
+  // let verify_duration = verify_end - proof_end;
+  timing.pop();
+  timing.print();
+  // let proof_end = start.elapsed();
+  // let proof_duration = proof_end - build_duration;
+  let verify_duration = timing.duration();
   println!("Verifying time: {:?}", verify_duration);
 
   println!("generating witness");
@@ -68,16 +86,13 @@ pub fn time_circuit<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, co
     "Framework": "plonky2",
     "Backend": "Plonk+FRI",
     "Curve": "NaN",
-    "Hardware": "CPU",
     "ProverTime": proof_duration.as_secs_f32(),
     "VerifierTime": verify_duration.as_nanos() as f32 / 1000000.,
     "ProofSize": proof_len
   });
 
-  // Convert JSON data to string
   let json_string = serde_json::to_string(&results).unwrap();
 
-  // Write JSON string to a file
   let mut file = File::create(outp_json).unwrap();
   let _ = file.write_all(json_string.as_bytes());
 

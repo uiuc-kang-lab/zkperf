@@ -1,0 +1,1 @@
+{"rustc":12059667272219702868,"features":"[]","target":180803368585825659,"profile":3567329628440936607,"path":14607311734954004581,"deps":[],"local":[{"CheckDepInfo":{"dep_info":"release/.fingerprint/plonky2_util-6fb71693c30e5ff9/dep-lib-plonky2_util"}}],"rustflags":["-Ctarget-cpu=native"],"metadata":4029446351803087490,"config":2202906307356721367,"compile_kind":0}

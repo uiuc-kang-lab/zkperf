@@ -4,7 +4,13 @@ use zkml::{
   utils::proving::time_circuit,
 };
 
+use jemallocator::Jemalloc;
+
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
+
 fn main() {
+  env_logger::init();
   let config_fname = std::env::args().nth(1).expect("config file path");
   let inp_fname = std::env::args().nth(2).expect("input file path");
   let outp_json = std::env::args().nth(3).expect("output json file path");
