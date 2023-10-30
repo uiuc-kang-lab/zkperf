@@ -13,7 +13,7 @@ use crate::{
 use ndarray::{Array, IxDyn};
 use plonky2::{
   field::extension::Extendable, hash::hash_types::RichField, iop::target::Target,
-  plonk::circuit_builder::CircuitBuilder,
+  plonk::{circuit_builder::CircuitBuilder, config::GenericConfig},
 };
 
 use super::layer::LayerConfig;
@@ -26,12 +26,12 @@ pub struct DAGLayerConfig {
   pub final_out_idxes: Vec<usize>,
 }
 
-pub struct DAGLayerCircuit<F: RichField + Extendable<D>, const D: usize> {
+pub struct DAGLayerCircuit<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize> {
   dag_config: DAGLayerConfig,
-  _marker: PhantomData<F>,
+  _marker: PhantomData<C>,
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> DAGLayerCircuit<F, D> {
+impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const D: usize> DAGLayerCircuit<F, C, D> {
   pub fn construct(dag_config: DAGLayerConfig) -> Self {
     Self {
       dag_config,
@@ -89,7 +89,9 @@ impl<F: RichField + Extendable<D>, const D: usize> DAGLayerCircuit<F, D> {
           )
         }
         LayerType::BatchMatMul => {
-          let batch_mat_mul_circuit = BatchMatMulCircuit {};
+          let batch_mat_mul_circuit = BatchMatMulCircuit::<F, C, D> {
+            _marker: PhantomData,
+          };
           batch_mat_mul_circuit.make_circuit(
             builder,
             &vec_inps,
@@ -121,8 +123,9 @@ impl<F: RichField + Extendable<D>, const D: usize> DAGLayerCircuit<F, D> {
           )
         }
         LayerType::FullyConnected => {
-          let fc_circuit = FullyConnectedCircuit {
+          let fc_circuit = FullyConnectedCircuit::<F, C, D> {
             config: FullyConnectedConfig::construct(true),
+            _marker: PhantomData,
           };
           fc_circuit.make_circuit(
             builder,

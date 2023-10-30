@@ -1,22 +1,35 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::HashMap, marker::PhantomData, rc::Rc};
 
-use ndarray::{Array, IxDyn, Axis};
+use ndarray::{Array, Axis, IxDyn};
 
 use plonky2::{
-  field::extension::Extendable, hash::hash_types::RichField, iop::target::Target,
-  plonk::circuit_builder::CircuitBuilder,
+  field::extension::Extendable,
+  hash::hash_types::RichField,
+  iop::target::Target,
+  plonk::{circuit_builder::CircuitBuilder, config::GenericConfig},
 };
 
 use crate::{
   gadgets::gadget::GadgetConfig,
-  layers::{layer::LayerConfig, fully_connected::{FullyConnectedCircuit, FullyConnectedConfig}},
+  layers::{
+    fully_connected::{FullyConnectedCircuit, FullyConnectedConfig},
+    layer::LayerConfig,
+  },
 };
 
-use super::layer::{Layer, GadgetConsumer};
+use super::layer::{GadgetConsumer, Layer};
 
-pub struct BatchMatMulCircuit {}
+pub struct BatchMatMulCircuit<
+  F: RichField + Extendable<D>,
+  C: GenericConfig<D, F = F>,
+  const D: usize,
+> {
+  pub(crate) _marker: PhantomData<C>,
+}
 
-impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for BatchMatMulCircuit {
+impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const D: usize> Layer<F, D>
+  for BatchMatMulCircuit<F, C, D>
+{
   fn make_circuit(
     &self,
     builder: &mut CircuitBuilder<F, D>,
@@ -47,8 +60,9 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for BatchMatMulCi
       vec![inp1.shape()[0], inp1.shape()[1], inp2.shape()[2]]
     };
 
-    let fc_circuit = FullyConnectedCircuit {
+    let fc_circuit = FullyConnectedCircuit::<F, C, D> {
       config: FullyConnectedConfig::construct(true),
+      _marker: PhantomData,
     };
 
     let mut outp = vec![];
@@ -83,7 +97,9 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for BatchMatMulCi
   }
 }
 
-impl GadgetConsumer for BatchMatMulCircuit {
+impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize> GadgetConsumer
+  for BatchMatMulCircuit<F, C, D>
+{
   fn used_gadgets(&self, _layer_params: Vec<i64>) -> Vec<crate::gadgets::gadget::GadgetType> {
     vec![]
   }

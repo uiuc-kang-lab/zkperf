@@ -1,17 +1,17 @@
 use std::{
   collections::{BTreeMap, BTreeSet, HashMap},
   rc::Rc,
-  sync::{Arc, Mutex},
+  sync::{Arc, Mutex}, marker::PhantomData,
 };
 
 use lazy_static::lazy_static;
 use ndarray::{Array, IxDyn};
 
-use plonky2::iop::target::Target;
 use plonky2::iop::witness::PartialWitness;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::{field::extension::Extendable, plonk::circuit_data::CircuitConfig};
 use plonky2::{hash::hash_types::RichField, iop::witness::WitnessWrite};
+use plonky2::{iop::target::Target, plonk::config::GenericConfig};
 
 use crate::{
   gadgets::{
@@ -25,6 +25,7 @@ use crate::{
   layers::{
     arithmetic::{add::AddCircuit, mul::MulCircuit},
     avg_pool_2d::AvgPool2DCircuit,
+    batch_mat_mul::BatchMatMulCircuit,
     conv2d::Conv2DCircuit,
     dag::{DAGLayerCircuit, DAGLayerConfig},
     fully_connected::{FullyConnectedCircuit, FullyConnectedConfig},
@@ -34,7 +35,7 @@ use crate::{
     shape::{
       concatenation::ConcatenationCircuit, gather::GatherCircuit, pack::PackCircuit,
       reshape::ReshapeCircuit, split::SplitCircuit, transpose::TransposeCircuit,
-    }, batch_mat_mul::BatchMatMulCircuit,
+    },
   },
   utils::loader::{load_model_msgpack, ModelMsgpack},
 };
@@ -42,9 +43,7 @@ use crate::{
 lazy_static! {
   pub static ref GADGET_CONFIG: Mutex<GadgetConfig> = Mutex::new(GadgetConfig::default());
 }
-
 #[derive(Clone, Debug, Default)]
-
 pub struct ModelCircuit {
   pub used_gadgets: Arc<BTreeSet<GadgetType>>,
   pub dag_config: DAGLayerConfig,
@@ -99,29 +98,18 @@ impl ModelCircuit {
         Rc::new(F::from_canonical_u64((val + shift_val_i64) as u64) - shift_val_f),
       );
     }
-
-    // TODO: I've made some very bad life decisions
-    // TOOD: this needs to be a random oracle
-    // let r_base = F::from_canonical_u64(0x123456789abcdef);
-    // let mut r = r_base.clone();
-    // println!("num_random: {}", self.num_random);
-    // for i in 0..self.num_random {
-    //   let rand = r;
-    //   r = r * r_base;
-    //   constants.insert(RAND_START_IDX + (i as i64), Rc::new(rand));
-    // }
     constants
   }
 
-  pub fn generate_from_file<F: RichField + Extendable<D>, const D: usize>(
+  pub fn generate_from_file<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
     config_file: &str,
     inp_file: &str,
   ) -> (ModelCircuit, CircuitBuilder<F, D>, PartialWitness<F>) {
     let config = load_model_msgpack(config_file, inp_file);
-    Self::generate_from_msgpack(config, true)
+    Self::generate_from_msgpack::<F, C, D>(config, true)
   }
 
-  pub fn generate_from_msgpack<F: RichField + Extendable<D>, const D: usize>(
+  pub fn generate_from_msgpack<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
     config: ModelMsgpack,
     panic_empty_tensor: bool,
   ) -> (ModelCircuit, CircuitBuilder<F, D>, PartialWitness<F>) {
@@ -194,6 +182,7 @@ impl ModelCircuit {
 
     let mut used_gadgets = BTreeSet::new();
 
+    let num_random = config.num_random.unwrap_or(0);
     let dag_config = {
       let ops = config
         .layers
@@ -203,15 +192,18 @@ impl ModelCircuit {
           let layer_gadgets = match layer_type {
             LayerType::Add => Box::new(AddCircuit {}) as Box<dyn GadgetConsumer>,
             LayerType::AvgPool2D => Box::new(AvgPool2DCircuit {}) as Box<dyn GadgetConsumer>,
-            LayerType::BatchMatMul => Box::new(BatchMatMulCircuit {}) as Box<dyn GadgetConsumer>,
+            LayerType::BatchMatMul => Box::new(BatchMatMulCircuit::<F, C, D> {
+              _marker: PhantomData,
+            }) as Box<dyn GadgetConsumer>,
             LayerType::Concatenation => {
               Box::new(ConcatenationCircuit {}) as Box<dyn GadgetConsumer>
             }
             LayerType::Conv2D => Box::new(Conv2DCircuit {
               config: LayerConfig::default(),
             }) as Box<dyn GadgetConsumer>,
-            LayerType::FullyConnected => Box::new(FullyConnectedCircuit {
+            LayerType::FullyConnected => Box::new(FullyConnectedCircuit::<F, C, D> {
               config: FullyConnectedConfig { normalize: true },
+              _marker: PhantomData,
             }) as Box<dyn GadgetConsumer>,
             LayerType::Gather => Box::new(GatherCircuit {}) as Box<dyn GadgetConsumer>,
             LayerType::Logistic => Box::new(LogisticCircuit {}) as Box<dyn GadgetConsumer>,
@@ -305,14 +297,14 @@ impl ModelCircuit {
         k: config.k as usize,
         bits_per_elem: config.bits_per_elem.unwrap_or(config.k) as usize,
         inp_idxes: config.inp_idxes.clone(),
-        num_random: config.num_random.unwrap_or(0),
+        num_random,
       },
       builder,
       pw,
     )
   }
 
-  pub fn construct<F: RichField + Extendable<D>, const D: usize>(
+  pub fn construct<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const D: usize>(
     &self,
     builder: &mut CircuitBuilder<F, D>,
   ) -> Vec<Array<Rc<Target>, IxDyn>> {
@@ -322,7 +314,7 @@ impl ModelCircuit {
 
     // make the circuit
     let tensors_vec = self.tensor_map_to_vec(&self.tensors);
-    let dag_circuit = DAGLayerCircuit::<F, D>::construct(self.dag_config.clone());
+    let dag_circuit = DAGLayerCircuit::<F, C, D>::construct(self.dag_config.clone());
     let result_targets = dag_circuit.make_circuit(
       builder,
       &tensors_vec,

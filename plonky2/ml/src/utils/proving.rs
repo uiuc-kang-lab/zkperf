@@ -16,14 +16,13 @@ use plonky2::{
 
 use crate::{gadgets::gadget::convert_to_u64, model::ModelCircuit};
 
-pub fn time_circuit<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
+pub fn time_circuit<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const D: usize>(
   circuit: ModelCircuit,
   mut builder: CircuitBuilder<F, D>,
   pw: PartialWitness<F>,
   outp_json: String,
 ) {
-  let result_targets = circuit.construct(&mut builder);
-  let pw2 = pw.clone();
+  let result_targets = circuit.construct::<F, C, D>(&mut builder);
 
   println!("building circuit");
   let start = Instant::now();
@@ -31,8 +30,10 @@ pub fn time_circuit<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, co
   let build_duration = start.elapsed();
   println!("circuit build duration: {:?}", build_duration);
 
+  let pw2 = pw.clone();
+
+  println!("proving circuit");
   let mut timing = TimingTree::new("prove", Level::Info);
-  // let proof = data.prove(pw, &mut timing).unwrap();
   let proof = prove::<F, C, D>(
     &data.prover_only,
     &data.common,
@@ -40,8 +41,7 @@ pub fn time_circuit<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, co
     &mut timing).unwrap();
   timing.pop();
   timing.print();
-  // let proof_end = start.elapsed();
-  // let proof_duration = proof_end - build_duration;
+
   let proof_duration = timing.duration();
   println!("Proving time: {:?}", proof_duration);
 
@@ -49,14 +49,12 @@ pub fn time_circuit<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, co
   let proof_len = proof_bytes.len();
   println!("Proof size: {} bytes", proof_len);
 
+  println!("verifying circuit");
   let mut timing = TimingTree::new("verify", Level::Info);
   data.verify(proof.clone()).expect("verify error");
-  // let verify_end = start.elapsed();
-  // let verify_duration = verify_end - proof_end;
   timing.pop();
   timing.print();
-  // let proof_end = start.elapsed();
-  // let proof_duration = proof_end - build_duration;
+
   let verify_duration = timing.duration();
   println!("Verifying time: {:?}", verify_duration);
 

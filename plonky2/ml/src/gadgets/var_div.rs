@@ -50,7 +50,6 @@ impl<F: RichField + Extendable<D>, const D: usize> Gadget<F, D> for DivRoundCirc
     // r is already constrained within the gate
     // check a stronger constraint than necessary 2 * div \in [0, 2^N)
     let div_lookup = gadget_config.tables.get(&GadgetType::InputLookup).unwrap()[0];
-    println!("two_div: {}", F::from_canonical_u16(2) * div);
     let two_div = builder.constant(F::from_canonical_u16(2) * div);
     builder.add_lookup_from_index(two_div, div_lookup);
 

@@ -18,6 +18,6 @@ fn main() {
   const D: usize = 2;
   type C = KeccakGoldilocksConfig;
   type F = <C as GenericConfig<D>>::F;
-  let (circuit, builder, pw) = ModelCircuit::generate_from_file(&config_fname, &inp_fname);
+  let (circuit, builder, pw) = ModelCircuit::generate_from_file::<F, C, D>(&config_fname, &inp_fname);
   time_circuit::<F, C, D>(circuit, builder, pw, outp_json);
 }

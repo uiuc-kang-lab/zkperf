@@ -85,43 +85,20 @@ pub trait NonLinearGadget<F: RichField + Extendable<D>, const D: usize>: Gadget<
     let inps = &vec_inputs[0];
     let nl_table = gadget_config.tables.get(&gadget_type).unwrap()[1];
 
-    // let shift_val_pos_i64 = -gadget_config.shift_min_val;
-    // println!("shift val pos: {}", shift_val_pos_i64);
-    // let shift_val_pos = F::from_canonical_u64(shift_val_pos_i64 as u64);
     let min_val = gadget_config.min_val;
-    println!("min_val: {}", min_val);
     let zero = builder.zero();
     let neg_min_val = F::from_canonical_i64(-min_val);
-    println!("neg min_val: {}", neg_min_val);
     let neg_min_val_t = builder.constant(neg_min_val);
     let min_val_t = builder.sub(zero, neg_min_val_t);
 
-    // let mut shifted_inps = vec![];
-    // let shift_val_pos_t = builder.constant(shift_val_pos);
-
     let shifted_inps = inps.iter().map(
       |x| {
-        // let x = builder.sub(**x, shift_val_pos_t);
-        // let pos = convert_to_u128(&(*x + shift_val_pos)) as i128 - shift_val_pos_i64 as i128;
-        // let x = pos as i64 - min_val;
         builder.sub(**x, min_val_t)
-        // let val = *map.get(&x).unwrap();
-        // if x == 0 {
-        //   F::ZERO
-        // } else {
-        //   if val >= 0 {
-        //     F::from(val as u64)
-        //   } else {
-        //     let val_pos = val + shift_val_pos_i64;
-        //     F::from(val_pos as u64) - F::from(shift_val_pos_i64 as u64)
-        //   }
-        // }
       }).collect::<Vec<_>>();
 
     let mut outps = vec![];
 
     for i in 0..inps.len() {
-      // let outp = builder.add_lookup_from_index(*inps[i], nl_table);
       let outp = builder.add_lookup_from_index(shifted_inps[i], nl_table);
       outps.push(outp);
     }

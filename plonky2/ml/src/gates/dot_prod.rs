@@ -21,7 +21,7 @@ use plonky2::{
 #[derive(Debug, Clone)]
 pub struct DotProductGate {}
 
-pub const DOTPROD_SIZE: usize = 9;
+pub const DOTPROD_SIZE: usize = 12;
 
 impl DotProductGate {
   pub fn construct() -> Self {
