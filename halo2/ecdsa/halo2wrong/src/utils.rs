@@ -13,7 +13,7 @@ use num_bigint::BigUint as big_uint;
 use num_traits::{Num, One, Zero};
 use std::{
     cell::RefCell,
-    ops::{RangeInclusive, Shl}, time::Instant,
+    ops::{RangeInclusive, Shl}
 };
 
 pub fn modulus<F: PrimeField>() -> big_uint {
@@ -69,17 +69,12 @@ pub fn mock_prover_verify<F: FromUniformBytes<64> + Ord, C: Circuit<F>>(
     instance: Vec<Vec<F>>,
 ) {
     let dimension = DimensionMeasurement::measure(circuit).unwrap();
-    let start = Instant::now();
     let prover = MockProver::run(dimension.k(), circuit, instance)
         .unwrap_or_else(|err| panic!("{:#?}", err));
-    let proof_duration = start.elapsed();
-    println!("Proving time: {:?}", proof_duration);
     assert_eq!(
         prover.verify_at_rows_par(dimension.advice_range(), dimension.advice_range()),
         Ok(())
     );
-    let verify_duration = start.elapsed();
-    println!("Verifying time: {:?}", verify_duration - proof_duration);
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
