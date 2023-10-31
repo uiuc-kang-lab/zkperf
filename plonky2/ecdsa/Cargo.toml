@@ -8,13 +8,22 @@ edition = "2021"
 [features]
 parallel = ["plonky2_maybe_rayon/parallel", "plonky2/parallel"]
 
+[profile.dev]
+opt-level = 3
+
+[profile.test]
+opt-level = 3
+
 [dependencies]
 anyhow = { version = "1.0.40", default-features = false }
+env_logger = "0.9.0"
 itertools = { version = "0.11.0", default-features = false }
+jemallocator = "0.5.0"
+log = "0.4.20"
 plonky2_maybe_rayon = { version = "0.1.1", default-features = false }
 num = { version = "0.4", default-features = false }
 plonky2 = { version = "0.1.4", default-features = false, features = ["std"] }
-plonky2_u32 = { git = "https://github.com/mir-protocol/plonky2-u32", default-features = false }
+plonky2_u32 = { git = "https://github.com/0xPolygonZero/plonky2-u32", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
