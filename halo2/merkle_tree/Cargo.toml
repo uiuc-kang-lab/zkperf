@@ -20,4 +20,3 @@ axiom-eth = { git = "https://github.com/axiom-crypto/axiom-eth.git", branch="com
 clap="4.0.13"
 env_logger = "=0.10"
 snark-verifier-sdk = { git = "https://github.com/axiom-crypto/snark-verifier.git", tag = "v0.1.1-ce", default-features = false, features = ["loader_halo2"] }
-

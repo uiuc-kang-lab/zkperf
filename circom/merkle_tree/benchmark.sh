@@ -1,8 +1,6 @@
 #!/bin/bash
 
-# Download params: pot21_final.ptau, it can be downloaded using 
-# wget -O pot21_final.ptau https://hermez.s3-eu-west-1.amazonaws.com/powersOfTau28_hez_final_21.ptau
-# PHASE1=...
+PHASE1=pot21_final.ptau
 BUILD_DIR=build/mt_keccak
 CIRCUIT_NAME=mtverifier
 INPUT=data/mt_verifier_input.json
