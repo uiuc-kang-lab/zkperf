@@ -75,7 +75,7 @@ impl CircuitConfig {
             num_routed_wires: 80,
             num_constants: 2,
             use_base_arithmetic_gate: true,
-            security_bits: 100,
+            security_bits: 10,
             num_challenges: 2,
             zero_knowledge: false,
             max_quotient_degree_factor: 8,

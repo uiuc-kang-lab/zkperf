@@ -1,5 +1,6 @@
 use alloc::vec;
 use alloc::vec::Vec;
+use serde::{Serialize, Deserialize};
 use core::marker::PhantomData;
 use plonky2::plonk::circuit_data::CommonCircuitData;
 
@@ -16,7 +17,7 @@ use crate::u32::gates::arithmetic_u32::U32ArithmeticGate;
 use crate::u32::gates::subtraction_u32::U32SubtractionGate;
 use crate::u32::witness::GeneratedValuesU32;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct U32Target(pub Target);
 
 pub trait CircuitBuilderU32<F: RichField + Extendable<D>, const D: usize> {

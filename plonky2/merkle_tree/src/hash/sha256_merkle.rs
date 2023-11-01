@@ -1,7 +1,33 @@
 use plonky2::field::extension::Extendable;
+use plonky2::gadgets::arithmetic::EqualityGenerator;
+use plonky2::gadgets::arithmetic_extension::QuotientGeneratorExtension;
+use plonky2::gadgets::range_check::LowHighGenerator;
+use plonky2::gadgets::split_base::BaseSumGenerator;
+use plonky2::gadgets::split_join::{SplitGenerator, WireSplitGenerator};
+use plonky2::gates::arithmetic_base::ArithmeticBaseGenerator;
+use plonky2::gates::arithmetic_extension::ArithmeticExtensionGenerator;
+use plonky2::gates::base_sum::BaseSplitGenerator;
+use plonky2::gates::coset_interpolation::InterpolationGenerator;
+use plonky2::gates::exponentiation::ExponentiationGenerator;
+use plonky2::gates::lookup::LookupGenerator;
+use plonky2::gates::lookup_table::LookupTableGenerator;
+use plonky2::gates::multiplication_extension::MulExtensionGenerator;
+use plonky2::gates::poseidon::PoseidonGenerator;
+use plonky2::gates::poseidon_mds::PoseidonMdsGenerator;
+use plonky2::gates::random_access::RandomAccessGenerator;
+use plonky2::gates::reducing::ReducingGenerator;
+use plonky2::gates::reducing_extension::ReducingGenerator as ReducingExtensionGenerator;
+use plonky2::get_generator_tag_impl;
 use plonky2::hash::hash_types::RichField;
+use plonky2::impl_generator_serializer;
+use plonky2::iop::generator::{
+    ConstantGenerator, CopyGenerator, NonzeroTestGenerator, RandomValueGenerator,
+};
 use plonky2::iop::target::{BoolTarget, Target};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
+use plonky2::read_generator_impl;
+use plonky2::util::serialization::WitnessGeneratorSerializer;
+use serde::{Deserialize, Serialize};
 
 use crate::u32::arithmetic_u32::U32Target;
 
@@ -141,20 +167,69 @@ impl DeltaMerkleProofSha256Gadget {
     }
 }
 
+pub struct MerkleGeneratorSerializer {}
+
+impl<F, const D: usize> WitnessGeneratorSerializer<F, D> for MerkleGeneratorSerializer
+where
+    F: RichField + Extendable<D>,
+{
+    impl_generator_serializer! {
+        DefaultGeneratorSerializer,
+        ArithmeticBaseGenerator<F, D>,
+        ArithmeticExtensionGenerator<F, D>,
+        BaseSplitGenerator<2>,
+        BaseSumGenerator<2>,
+        ConstantGenerator<F>,
+        CopyGenerator,
+        EqualityGenerator,
+        ExponentiationGenerator<F, D>,
+        InterpolationGenerator<F, D>,
+        LookupGenerator,
+        LookupTableGenerator,
+        LowHighGenerator,
+        MulExtensionGenerator<F, D>,
+        NonzeroTestGenerator,
+        PoseidonGenerator<F, D>,
+        PoseidonMdsGenerator<D>,
+        QuotientGeneratorExtension<D>,
+        RandomAccessGenerator<F, D>,
+        RandomValueGenerator,
+        ReducingGenerator<D>,
+        ReducingExtensionGenerator<D>,
+        SplitGenerator,
+        WireSplitGenerator
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct MerkleTargets {
+    start_hash_target: [U32Target; 8],
+    hash0: [U32Target; 8],
+}
+
 #[cfg(test)]
 mod tests {
 
     use crate::hash::merkle_utils::MerkleProof256;
-    use crate::hash::sha256_merkle::MerkleProofSha256Gadget;
+    use crate::hash::sha256_merkle::{
+        MerkleGeneratorSerializer, MerkleProofSha256Gadget, MerkleTargets,
+    };
     use crate::hash::{CircuitBuilderHash, WitnessHash};
+    use log::Level;
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
-    use plonky2::plonk::circuit_data::CircuitConfig;
+    use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
     use plonky2::plonk::config::{
         GenericConfig, Hasher, KeccakGoldilocksConfig, PoseidonGoldilocksConfig,
     };
+    use plonky2::plonk::prover::prove;
+    use plonky2::util::serialization::DefaultGateSerializer;
+    use plonky2::util::timing::TimingTree;
     use rand::Rng;
+    use serde_json::json;
 
+    use std::fs::File;
+    use std::io::{Read, Write};
     use std::time::Instant;
 
     use crate::hash::simple_merkle_tree::MerkleTree;
@@ -162,6 +237,9 @@ mod tests {
     use plonky2::field::types::Field;
     use plonky2::hash::keccak::KeccakHash;
     use plonky2_field::goldilocks_field::GoldilocksField;
+
+    #[global_allocator]
+    static GLOBAL: Jemalloc = Jemalloc;
 
     #[test]
     fn test_verify_small_merkle_proof() {
@@ -211,10 +289,70 @@ mod tests {
     }
 
     #[test]
-    fn test_merkle() {
-        #[global_allocator]
-        static GLOBAL: Jemalloc = Jemalloc;
+    fn build_merkle() {
+        // const GOLDILOCKS_FIELD_ORDER: u64 = 18446744069414584321;
+        const D: usize = 2;
+        type C = KeccakGoldilocksConfig;
+        type F = <C as GenericConfig<D>>::F;
+        // const N: usize = 32;
 
+        let config = CircuitConfig {
+            num_routed_wires: 25,
+            ..CircuitConfig::standard_recursion_zk_config()
+        };
+
+        // let mut rng = rand::thread_rng();
+        // let mut leaves: Vec<GoldilocksField> = Vec::new();
+        // for _ in 0..1024 {
+        //     leaves.push(F::from_canonical_u64(
+        //         rng.gen_range(0..GOLDILOCKS_FIELD_ORDER),
+        //     ));
+        // }
+        // let tree: MerkleTree = MerkleTree::build(leaves.clone());
+
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
+        let start_hash_target = builder.add_virtual_hash256_target();
+        // let start_hash_target = builder.add_virtual_hash_input_target();
+        let hash0 = builder.add_virtual_hash256_target();
+
+        let merkle_targets = MerkleTargets {
+            start_hash_target,
+            hash0,
+        };
+
+        let json_string = serde_json::to_string(&merkle_targets).unwrap();
+        let mut file = File::create("merkle.targets").unwrap();
+        let _ = file.write_all(json_string.as_bytes());
+
+        // 1024 nodes, 10 deep
+        // let res_leaf_2 = tree.clone().get_merkle_proof(10);
+
+        // Input into circuit is hashed leaf (H_2) we're proving is part of the tree
+        // Step 1: hash H_2 with H_3. H_3 is the first hash in the proof (res_leaf_2)
+        // Input into circuit
+        // let leaf_hashed = KeccakHash::<N>::hash_or_noop(&[leaves.clone()[10]]);
+
+        println!("building circuit");
+        let start = Instant::now();
+        let data = builder.build::<C>();
+        let build_duration = start.elapsed();
+        println!("circuit build duration: {:?}", build_duration);
+
+        let gate_serializer = DefaultGateSerializer {};
+        let generator_serializer = MerkleGeneratorSerializer {};
+
+        let mut file = File::create("merkle.data").unwrap();
+        let _ = file.write_all(
+            &data
+                .to_bytes(&gate_serializer, &generator_serializer)
+                .unwrap(),
+        );
+    }
+
+    #[test]
+    fn test_merkle() {
+        env_logger::init();
         const GOLDILOCKS_FIELD_ORDER: u64 = 18446744069414584321;
         const D: usize = 2;
         type C = KeccakGoldilocksConfig;
@@ -223,22 +361,16 @@ mod tests {
 
         let mut rng = rand::thread_rng();
         let mut leaves: Vec<GoldilocksField> = Vec::new();
-        for i in 0..1024 {
+        for _ in 0..1024 {
             leaves.push(F::from_canonical_u64(
                 rng.gen_range(0..GOLDILOCKS_FIELD_ORDER),
             ));
         }
         let tree: MerkleTree = MerkleTree::build(leaves.clone());
 
-        let config = CircuitConfig {
-            num_routed_wires: 25,
-            ..CircuitConfig::standard_recursion_zk_config()
-        };
-
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-        let start_hash_target = builder.add_virtual_hash256_target();
-        // let start_hash_target = builder.add_virtual_hash_input_target();
-        let hash0 = builder.add_virtual_hash256_target();
+        // let mut builder = CircuitBuilder::<F, D>::new(config);
+        // let start_hash_target = builder.add_virtual_hash256_target();
+        // let hash0 = builder.add_virtual_hash256_target();
 
         // 1024 nodes, 10 deep
         let res_leaf_2 = tree.clone().get_merkle_proof(10);
@@ -248,26 +380,66 @@ mod tests {
         // Input into circuit
         let leaf_hashed = KeccakHash::<N>::hash_or_noop(&[leaves.clone()[10]]);
 
-        // builder.hash_or_noop::<KeccakHash::<N>>([start_hash_target.elements.to_vec(), hash0.elements.to_vec()].concat());
+        let mut file = File::open("merkle.targets").expect("File not found");
 
-        let mut pw = PartialWitness::new();
-        pw.set_hash256_target(&start_hash_target, &leaf_hashed.0);
+        let mut buffer = String::new();
+        file.read_to_string(&mut buffer)
+            .expect("Failed to read the file");
+
+        let merkle_targets: MerkleTargets = serde_json::from_str(&buffer).unwrap();
+
+        let mut pw: PartialWitness<F> = PartialWitness::new();
+        pw.set_hash256_target(&merkle_targets.start_hash_target, &leaf_hashed.0);
         // pw.set_keccak256_input_target(&start_hash_target, &leaf_hashed.0);
-        pw.set_hash256_target(&hash0, &(res_leaf_2[0].0));
+        pw.set_hash256_target(&merkle_targets.hash0, &(res_leaf_2[0].0));
 
-        let data = builder.build::<C>();
-        let start = Instant::now();
-        let proof = data.prove(pw).unwrap();
-        let proof_duration = start.elapsed();
+        // let data = builder.build::<C>();
+        let mut file = File::open("merkle.data").expect("File not found");
+
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer)
+            .expect("Failed to read the file");
+
+        let gate_serializer = DefaultGateSerializer {};
+        let generator_serializer = MerkleGeneratorSerializer {};
+        let data: CircuitData<F, C, D> =
+            CircuitData::from_bytes(&buffer, &gate_serializer, &generator_serializer).unwrap();
+
+        println!("proving circuit");
+        let mut timing = TimingTree::new("prove", Level::Info);
+        let proof = prove::<F, C, D>(&data.prover_only, &data.common, pw, &mut timing).unwrap();
+        timing.pop();
+        timing.print();
+        let proof_duration = timing.duration();
         println!("Proving time: {:?}", proof_duration);
 
         let proof_bytes = proof.to_bytes();
         let proof_len = proof_bytes.len();
         println!("Proof size: {} bytes", proof_len);
 
-        let _ = data.verify(proof);
-        let verify_end = start.elapsed();
-        let verify_duration = verify_end - proof_duration;
+        println!("verifying circuit");
+        let mut timing = TimingTree::new("verify", Level::Info);
+        data.verify(proof).expect("verify error");
+        timing.pop();
+        timing.print();
+      
+        let verify_duration = timing.duration();
         println!("Verifying time: {:?}", verify_duration);
+
+        println!("writing results");
+        let results = json!({
+          "Framework": "plonky2",
+          "Circuit": "MerkleTree",
+          "Backend": "Plonk+FRI",
+          "Curve": "NaN",
+          "ProverTime": proof_duration.as_secs_f32(),
+          "VerifierTime": verify_duration.as_nanos() as f32 / 1000000.,
+          "ProofSize": proof_len
+        });
+      
+        let json_string = serde_json::to_string(&results).unwrap();
+      
+        let mut file = File::create("merkle.json").unwrap();
+        let _ = file.write_all(json_string.as_bytes());
     }
 }

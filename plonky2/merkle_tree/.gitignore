@@ -18,3 +18,6 @@ Cargo.lock
 
 # Do not include rust-toolchain.toml (users can choose their own nightly channel)
 rust-toolchain.toml
+
+merkle.data
+merkle.targets
