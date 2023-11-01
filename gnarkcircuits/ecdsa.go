@@ -17,7 +17,6 @@ type ECDSACircuit struct {
 }
 
 func (circuit *ECDSACircuit) Define(api frontend.API) error {
-
 	circuit.PublicKey.Verify(api, sw_emulated.GetSecp256k1Params(), &circuit.Message, &circuit.Signature)
 	return nil
 }

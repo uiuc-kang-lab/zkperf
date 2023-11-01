@@ -14,7 +14,7 @@ type MerkleTreeCircuit struct {
 
 func (circuit *MerkleTreeCircuit) Define(api frontend.API) error {
 
-	hashFunc, _ := sha3.New256(api)
+	hashFunc, _ := sha3.NewLegacyKeccak256(api) //Ref: https://github.com/Consensys/gnark/blob/36b0b58f02d0381774b24efba0a48032e5f794b4/std/hash/sha3/hashes.go#L60
 	hashFunc.Write(circuit.Leaf)
 	for i := 0; i < len(circuit.Path); i++ {
 		hashFunc.Write(circuit.Path[i])

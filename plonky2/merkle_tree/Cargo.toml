@@ -1,10 +1,37 @@
 [package]
-name = "merkle_tree"
+name = "plonky2_crypto"
+description = "Crypto gadgets for Plonky2"
 version = "0.1.0"
+license = "MIT OR Apache-2.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[profile.dev]
+opt-level = 3
+
+[profile.test]
+opt-level = 3
 
 [dependencies]
-plonky2 = "0.1.4"
+anyhow = { version = "1.0.40", default-features = false }
+env_logger = "0.9.0"
+jemallocator = "0.5.0"
+log = { version = "0.4.14", default-features = false }
+plonky2 = { path = "../plonky2", default-features = true }
+plonky2_field = { git="https://github.com/0xPolygonZero/plonky2", package="plonky2_field", rev="41a29f069b6731c4af2644337959fbad8c771c77" }
+plonky2_maybe_rayon = { version = "0.1" }
+plonky2_util = { version = "0.1.0", default-features = false }
+itertools = "0.10.5"
+num = { version = "0.4.0", default-features = false }
+serde = "1.0.152"
+serde_with = { version = "2.2.0", features = ["hex"] }
+serde_json = "1.0"
+rayon = { version = "1.5.3" }
+hex = { version = "0.4.3" }
 rand = "0.8.5"
+
+[dev-dependencies]
+debug_print = { version = "1.0.0" }
+sha2 = { version = "0.10.6" }
+sha3 = { version = "0.10.6" }
+serde_json = "1.0"
+criterion = "0.3"
