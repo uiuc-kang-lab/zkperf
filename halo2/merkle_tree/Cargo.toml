@@ -6,6 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2.git", tag = "v2023_04_20" }
-halo2_gadgets = { git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v2023_04_20"}
-rand = "0.8.5"
+rand = "=0.8"
+serde = { version = "=1.0", default-features = false, features = ["derive"] }
+serde_json = "=1.0"
+halo2-base = { git = "https://github.com/axiom-crypto/halo2-lib.git", tag = "v0.3.0-ce", default-features = false }
+axiom-eth = { git = "https://github.com/axiom-crypto/axiom-eth.git", branch="community-edition", default-features = false, features = ["halo2-axiom", "aggregation", "evm", "clap"] }
+clap="4.0.13"
+env_logger = "=0.10"
+snark-verifier-sdk = { git = "https://github.com/axiom-crypto/snark-verifier.git", tag = "v0.1.1-ce", default-features = false, features = ["loader_halo2"] }
+
