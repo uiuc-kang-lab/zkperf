@@ -1,9 +1,9 @@
 #!/bin/bash
 
 PHASE1=pot21_final.ptau
-BUILD_DIR=build/mt_keccak
-CIRCUIT_NAME=mtverifier
-INPUT=data/mt_verifier_input.json
+BUILD_DIR=build/ecdsa
+CIRCUIT_NAME=ecdsa_verify_no_precompute
+INPUT=data/input.json
 OUTPUT="measurement.json"
 
 if [ -f "$PHASE1" ]; then
@@ -24,7 +24,7 @@ if [ ! -f "$BUILD_DIR"/"$OUTPUT" ]; then
 fi
 
 echo "$(jq '. += {"Framework": "circom" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
-echo "$(jq '. += {"Circuit": "Merkle Tree" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
+echo "$(jq '. += {"Circuit": "ECDSA" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 echo "$(jq '. += {"Backend": "Groth16" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 echo "$(jq '. += {"Curve": "BN254" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 echo "$(jq --arg tmp $(lscpu | grep "Model name:" | sed -e "s/^Model name:                      //" | sed -e "s/\s\+/./g") \
@@ -33,7 +33,7 @@ echo "$(jq --arg tmp $(lscpu | grep "Model name:" | sed -e "s/^Model name:      
 echo "****COMPILING CIRCUIT****"
 start=`date +%s`
 set -x
-circom circuits/mt_keccak256/"$CIRCUIT_NAME".circom --r1cs --wasm --sym --c --wat --output "$BUILD_DIR"
+circom circuits/"$CIRCUIT_NAME".circom --r1cs --wasm --sym --c --wat --output "$BUILD_DIR"
 { set +x; } 2>/dev/null
 end=`date +%s`
 echo "DONE ($((end-start))s)"

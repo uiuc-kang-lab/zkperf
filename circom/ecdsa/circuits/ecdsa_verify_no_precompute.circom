@@ -33,3 +33,5 @@ template ECDSAVerifyNoPrecompute(n, k) {
         pubKey[1][i] <== pointAdder.out[1][i];
     }
 }
+
+component main { public [T, U] } = ECDSAVerifyNoPrecompute(64, 4);
