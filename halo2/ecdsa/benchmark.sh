@@ -8,6 +8,11 @@ if [ ! -f "$OUTPUT" ]; then
     echo "{}" > "$OUTPUT"
 fi
 
+if [ ! -d "./params_kzg" ]; then
+    echo "No params directory found. Creating the directory..."
+    mkdir -p "./params_kzg"
+fi
+
 echo "$(jq '. += {"Framework": "Halo2" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 echo "$(jq '. += {"Circuit": "ECDSA" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 echo "$(jq '. += {"Backend": "Plonk" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
