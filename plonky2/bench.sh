@@ -17,14 +17,14 @@ cargo build --release
 cd ..
 touch /tmp/test
 # "$ECDSA_DIR"/target/release/standard build
-{ RUST_LOG=debug gtime -v "$ECDSA_DIR"/target/release/standard; } 2> /tmp/test
+{ RUST_LOG=debug /usr/bin/time -v "$ECDSA_DIR"/target/release/standard; } 2> /tmp/test
 echo "$(jq --arg tmp $(echo "scale=6; $(cat /tmp/test | grep "Maximum resident set size" | tr -d -c 0-9)/1024" | bc) '.+={"MemoryConsumption": $tmp }' "$ECDSA_OUTPUT")" > "$ECDSA_OUTPUT"
 rm /tmp/test
 
 cd $MERKLE_DIR
 cargo test build_merkle -- --nocapture
 touch /tmp/test
-{ gtime -v RUST_LOG=debug cargo test test_merkle -- --nocapture; } 2> /tmp/test
+{ RUST_LOG=debug /usr/bin/time -v cargo test test_merkle -- --nocapture; } 2> /tmp/test
 echo "$(jq --arg tmp $(echo "scale=6; $(cat /tmp/test | grep "Maximum resident set size" | tr -d -c 0-9)/1024" | bc) '.+={"MemoryConsumption": $tmp }' "$MERKLE_OUTPUT")" > "$MERKLE_OUTPUT"
 rm /tmp/test
 
@@ -35,7 +35,7 @@ cd ..
 declare -a json_outps=("$ECDSA_OUTPUT" "$MERKLE_OUTPUT" "$MNIST_OUTPUT" "$DLRM_OUTPUT")
 
 touch /tmp/test
-{ gtime -v "$ML_DIR"/target/release/time_circuit "$ML_DIR"/examples/mnist/model.msgpack "$ML_DIR"/examples/mnist/inp.msgpack "$MNIST_OUTPUT"; } 2> /tmp/test
+{ /usr/bin/time -v "$ML_DIR"/target/release/time_circuit "$ML_DIR"/examples/mnist/model.msgpack "$ML_DIR"/examples/mnist/inp.msgpack "$MNIST_OUTPUT"; } 2> /tmp/test
 echo "$(jq --arg tmp $(echo "scale=6; $(cat /tmp/test | grep "Maximum resident set size" | tr -d -c 0-9)/1024" | bc) '.+={"MemoryConsumption": $tmp }' "$MNIST_OUTPUT")" > "$MNIST_OUTPUT"
 echo "$(jq '. += {"Circuit": "MNIST" }' "$MNIST_OUTPUT")" > "$MNIST_OUTPUT"
 # echo "$(jq --arg tmp $(lscpu | grep "Model name:" | sed -e "s/^Model name:                      //" | sed -e "s/\s\+/./g") \
@@ -43,7 +43,7 @@ echo "$(jq '. += {"Circuit": "MNIST" }' "$MNIST_OUTPUT")" > "$MNIST_OUTPUT"
 rm /tmp/test
 
 touch /tmp/test
-{ gtime -v "$ML_DIR"/target/release/time_circuit "$ML_DIR"/examples/dlrm/model.msgpack "$ML_DIR"/examples/dlrm/zero.msgpack "$DLRM_OUTPUT"; } 2> /tmp/test
+{ /usr/bin/time -v "$ML_DIR"/target/release/time_circuit "$ML_DIR"/examples/dlrm/model.msgpack "$ML_DIR"/examples/dlrm/zero.msgpack "$DLRM_OUTPUT"; } 2> /tmp/test
 echo "$(jq --arg tmp $(echo "scale=6; $(cat /tmp/test | grep "Maximum resident set size" | tr -d -c 0-9)/1024" | bc) '.+={"MemoryConsumption": $tmp }' "$DLRM_OUTPUT")" > "$DLRM_OUTPUT"
 echo "$(jq '. += {"Circuit": "DLRM" }' "$DLRM_OUTPUT")" > "$DLRM_OUTPUT"
 # echo "$(jq --arg tmp $(lscpu | grep "Model name:" | sed -e "s/^Model name:                      //" | sed -e "s/\s\+/./g") \
