@@ -2,7 +2,7 @@
 
 BUILD_DIR=.
 OUTPUT="measurement.json"
-EXECUTABLE="./target/release/halo2-mt"
+EXECUTABLE="./target/release/merkle_tree"
 CIRCUIT="mt_keccak"
 if [ ! -f "$OUTPUT" ]; then
     touch "$BUILD_DIR"/"$OUTPUT"
