@@ -5,7 +5,7 @@ use std::{
     cell::RefCell,
     env::{set_var, var},
     fs::{self, File},
-    io::{BufReader, BufWriter},
+    io::{BufReader, BufWriter, Write},
     path::{Path, PathBuf},
     marker::PhantomData,
     time::Instant,
@@ -36,10 +36,12 @@ use halo2_base::{
         },
         SerdeFormat,
     },
-    utils::fs::gen_srs,
+    // utils::fs::gen_srs,
     safe_types::RangeChip,
     AssignedValue, Context,
 };
+
+
 use serde::de::DeserializeOwned;
 use snark_verifier_sdk::{
     halo2::{gen_snark_shplonk, read_snark, PoseidonTranscript},
@@ -180,7 +182,7 @@ pub fn run_cli<P: PreCircuit + Clone>(precircuit: P, cli: Cli) {
     fs::create_dir_all(&config_path).unwrap();
     fs::create_dir_all(&data_path).unwrap();
 
-    let params = gen_srs(k);
+    let params = get_kzg_params(k);
     println!("Universal trusted setup (unsafe!) available at: params/kzg_bn254_{k}.srs");
     match cli.command {
         SnarkCmd::Mock => {
@@ -301,6 +303,28 @@ pub fn run_cli<P: PreCircuit + Clone>(precircuit: P, cli: Cli) {
         // }
     }
 }
+
+
+pub fn get_kzg_params(degree: u32) -> ParamsKZG<Bn256> {
+    let rng = rand::thread_rng();
+    let path = format!("params/kzg_bn254_{}.params", degree);
+    let params_path = Path::new(&path);
+    if File::open(&params_path).is_err() {
+        let params = ParamsKZG::<Bn256>::setup(degree, rng);
+        let mut buf = Vec::new();
+
+        params.write(&mut buf).expect("Failed to write params");
+        let mut file = File::create(&params_path).expect("Failed to create params file");
+        file
+            .write_all(&buf[..])
+            .expect("Failed to write params to file");
+    }
+
+    let mut params_fs = File::open(&params_path).expect("couldn't load params");
+    let params = ParamsKZG::<Bn256>::read(&mut params_fs).expect("Failed to read params");
+    params
+}
+
 
 fn custom_read_pk<C, P>(fname: P, _: &C) -> ProvingKey<G1Affine>
 where
