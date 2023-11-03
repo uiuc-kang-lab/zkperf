@@ -29,7 +29,7 @@ rm /tmp/test
 end=`date +%s%N`
 echo "$(jq --arg tmp $(stat -c %s "$BUILD_DIR"/data/"$CIRCUIT".snark) '.+={"ProofSize": $tmp}' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 echo "$(jq --arg tmp $(echo "scale=6; $((end-start))/1000000000" | bc) '.+={"ProverTime": $tmp}' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
-echo "Proof Size: $(stat -c %s "$BUILD_DIR"/data/"$CIRCUIT".snark)bytes"
+echo "Proof Size: $(stat -c %s "$BUILD_DIR"/data/"$CIRCUIT".proof)bytes"
 echo "DONE ($((end-start))ns)"
 
 echo "****VERIFYING PROOF FOR SAMPLE INPUT****"

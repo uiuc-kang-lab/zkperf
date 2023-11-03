@@ -183,7 +183,7 @@ pub fn run_cli<P: PreCircuit + Clone>(precircuit: P, cli: Cli) {
     fs::create_dir_all(&data_path).unwrap();
 
     let params = get_kzg_params(k);
-    println!("Universal trusted setup (unsafe!) available at: params/kzg_bn254_{k}.srs");
+    // println!("Universal trusted setup (unsafe!) available at: params/kzg_bn254_{k}.srs");
     match cli.command {
         SnarkCmd::Mock => {
             let circuit = precircuit.create_circuit(CircuitBuilderStage::Mock, None, &params);
@@ -196,7 +196,7 @@ pub fn run_cli<P: PreCircuit + Clone>(precircuit: P, cli: Cli) {
             }
             let pinning_path = config_path.join(PathBuf::from(format!("{name}.json")));
             let pk = precircuit.create_pk(&params, &pk_path, pinning_path);
-            println!("Proving key written to: {pk_path:?}");
+            // println!("Proving key written to: {pk_path:?}");
 
             let vk_path = data_path.join(PathBuf::from(format!("{name}.vk")));
             let f = File::create(&vk_path).unwrap();
@@ -204,7 +204,7 @@ pub fn run_cli<P: PreCircuit + Clone>(precircuit: P, cli: Cli) {
             pk.get_vk()
                 .write(&mut writer, SerdeFormat::RawBytes)
                 .expect("writing vkey should not fail");
-            println!("Verifying key written to: {vk_path:?}");
+            // println!("Verifying key written to: {vk_path:?}");
         }
         SnarkCmd::Prove => {
             let pinning_path = config_path.join(PathBuf::from(format!("{name}.json")));
@@ -219,12 +219,14 @@ pub fn run_cli<P: PreCircuit + Clone>(precircuit: P, cli: Cli) {
             if snark_path.exists() {
                 fs::remove_file(&snark_path).unwrap();
             }
-            let start = Instant::now();
+            // let start = Instant::now();
             let snark = gen_snark_shplonk(&params, &pk, circuit, Some(&snark_path));
-            let duration = start.elapsed();
-            println!("Proof Generation Time: {:?}", duration);
-            println!("Proof Size: {}", snark.proof.len());
-            println!("Snark written to: {snark_path:?}");
+            let proof_path = data_path.join(PathBuf::from(format!("{name}.proof")));
+            serialize(&snark.proof, &proof_path);
+            // let duration = start.elapsed();
+            // println!("Proof Generation Time: {:?}", duration);
+            // println!("Proof Size: {}", snark.proof.len());
+            // println!("Snark written to: {snark_path:?}");
         }
         SnarkCmd::Verify => {
             let vk_path = data_path.join(PathBuf::from(format!("{name}.vk")));
@@ -239,7 +241,7 @@ pub fn run_cli<P: PreCircuit + Clone>(precircuit: P, cli: Cli) {
             let mut transcript =
                 PoseidonTranscript::<NativeLoader, &[u8]>::new::<0>(&snark.proof[..]);
             let instance = &snark.instances[0][..];
-            let start = Instant::now();
+            // let start = Instant::now();
             verify_proof::<
                 KZGCommitmentScheme<Bn256>,
                 VerifierSHPLONK<'_, Bn256>,
@@ -248,9 +250,9 @@ pub fn run_cli<P: PreCircuit + Clone>(precircuit: P, cli: Cli) {
                 SingleStrategy<'_, Bn256>,
             >(verifier_params, &vk, strategy, &[&[instance]], &mut transcript)
             .unwrap();
-            let duration = start.elapsed();
-            println!("Verification Time: {:?}", duration);
-            println!("Snark verified successfully!");
+            // let duration = start.elapsed();
+            // println!("Verification Time: {:?}", duration);
+            // println!("Snark verified successfully!");
         }
         // SnarkCmd::Full => {
         //     let pk_path = data_path.join(PathBuf::from(format!("{name}.pk")));
@@ -323,6 +325,12 @@ pub fn get_kzg_params(degree: u32) -> ParamsKZG<Bn256> {
     let mut params_fs = File::open(&params_path).expect("couldn't load params");
     let params = ParamsKZG::<Bn256>::read(&mut params_fs).expect("Failed to read params");
     params
+}
+
+pub fn serialize(data: &Vec<u8>, path: &PathBuf) -> u64 {
+    let mut file = File::create(path).unwrap();
+    file.write_all(data).unwrap();
+    file.metadata().unwrap().len()
 }
 
 
