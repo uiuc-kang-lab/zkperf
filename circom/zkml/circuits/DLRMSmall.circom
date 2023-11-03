@@ -34,7 +34,6 @@ template DLRMSmall(sd) {
     component top_l_0 = DenseReLUScaleDown(415, 512, sd);
     component top_l_2 = DenseReLUScaleDown(512, 512, sd);
     component top_l_4 = DenseReLUScaleDown(512, 256, sd);
-    component top_l_6 = DenseScaleDown(256, 1, sd);
     component top_l_6 = Dense(256, 1);
 
     // Bot Layer
@@ -121,4 +120,4 @@ template DLRMSmall(sd) {
     log("The output is: ", out);
 }
 
-component main = DLRMSmall(10);
+component main = DLRMSmall(9);
