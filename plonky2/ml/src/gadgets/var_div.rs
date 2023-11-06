@@ -43,7 +43,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Gadget<F, D> for DivRoundCirc
     let inp = &vec_inputs[0];
     let div_outp_min_val = F::from_canonical_u64(gadget_config.div_outp_min_val as u64);
     let shift_min_val = F::from_canonical_u64(gadget_config.shift_min_val as u64);
-    // println!("vdiv div_outp_min_val: {}, vdiv shift_min_val: {}", div_outp_min_val, shift_min_val);
+
     let div = single_inputs[0];
 
     // r is already constrained within the gate
@@ -73,7 +73,6 @@ impl<F: RichField + Extendable<D>, const D: usize> Gadget<F, D> for DivRoundCirc
     let zero = builder.zero();
     if inp.len() % num_ops != 0 {
       for i in (inp.len() % num_ops)..num_ops {
-        println!("i: {}", i);
         builder.connect(
           zero,
           Target::wire(

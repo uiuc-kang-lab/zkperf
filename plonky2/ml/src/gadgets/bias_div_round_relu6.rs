@@ -54,7 +54,6 @@ impl BiasDivRoundRelu6Circuit {
     let lookup = Self::load_lookups(builder, map_config).unwrap();
     let mut tables = gadget_config.tables;
     tables.insert(GadgetType::BiasDivRoundRelu6, vec![lookup]);
-    println!("biasdivround lookup: {}", lookup);
 
     GadgetConfig {
       tables,
@@ -65,10 +64,8 @@ impl BiasDivRoundRelu6Circuit {
 
 impl<F: RichField + Extendable<D>, const D: usize> Gadget<F, D> for BiasDivRoundRelu6Circuit {
   fn load_lookups(builder: &mut CircuitBuilder<F, D>, config: GadgetConfig) -> Option<usize> {
-    println!("load lookups");
     let map = &config.maps[&GadgetType::BiasDivRoundRelu6][0];
 
-    println!("num_rows: {}", config.num_rows);
     let relu_table = Arc::new({
       (0..config.num_rows)
         .map(|d| {
@@ -161,7 +158,6 @@ impl<F: RichField + Extendable<D>, const D: usize> Gadget<F, D> for BiasDivRound
 
     if inps.len() % num_ops != 0 {
       for i in (inps.len() % num_ops)..num_ops {
-        println!("i: {}", i);
         builder.connect(
           zero,
           Target::wire(
