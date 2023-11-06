@@ -189,15 +189,18 @@ impl ModelCircuit {
           let layer_type = match_layer(&layer.layer_type);
           let layer_gadgets = match layer_type {
             LayerType::Add => Box::new(AddCircuit {}) as Box<dyn GadgetConsumer>,
-            LayerType::AvgPool2D => Box::new(AvgPool2DCircuit {}) as Box<dyn GadgetConsumer>,
+            LayerType::AvgPool2D => Box::new(AvgPool2DCircuit::<F, C, D> {
+              _marker: PhantomData,
+            }) as Box<dyn GadgetConsumer>,
             LayerType::BatchMatMul => Box::new(BatchMatMulCircuit::<F, C, D> {
               _marker: PhantomData,
             }) as Box<dyn GadgetConsumer>,
             LayerType::Concatenation => {
               Box::new(ConcatenationCircuit {}) as Box<dyn GadgetConsumer>
             }
-            LayerType::Conv2D => Box::new(Conv2DCircuit {
+            LayerType::Conv2D => Box::new(Conv2DCircuit::<F, C, D> {
               config: LayerConfig::default(),
+              _marker: PhantomData,
             }) as Box<dyn GadgetConsumer>,
             LayerType::FullyConnected => Box::new(FullyConnectedCircuit::<F, C, D> {
               config: FullyConnectedConfig { normalize: true },

@@ -1,10 +1,10 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::HashMap, rc::Rc, marker::PhantomData};
 
 use ndarray::{Array, IxDyn};
 
 use plonky2::{
   field::extension::Extendable, hash::hash_types::RichField, iop::target::Target,
-  plonk::circuit_builder::CircuitBuilder,
+  plonk::{circuit_builder::CircuitBuilder, config::GenericConfig},
 };
 
 use crate::{
@@ -17,9 +17,15 @@ use crate::{
 
 use super::layer::{GadgetConsumer, Layer};
 
-pub struct AvgPool2DCircuit {}
+pub struct AvgPool2DCircuit<
+F: RichField + Extendable<D>,
+C: GenericConfig<D, F = F>,
+const D: usize,
+> {
+  pub(crate) _marker: PhantomData<C>,
+}
 
-impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for AvgPool2DCircuit {
+impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const D: usize> Layer<F, D> for AvgPool2DCircuit<F, C, D>{
   fn make_circuit(
     &self,
     builder: &mut CircuitBuilder<F, D>,
@@ -50,7 +56,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for AvgPool2DCirc
       layer_config.layer_params[3] as usize,
     );
 
-    let (oh, ow) = Conv2DCircuit::out_hw(h, w, sh, sw, fx, fy, PaddingEnum::Valid);
+    let (oh, ow) = Conv2DCircuit::<F, C, D>::out_hw(h, w, sh, sw, fx, fy, PaddingEnum::Valid);
     let batch_size = inp.shape()[0];
 
     let mut sum_outp = vec![];
@@ -82,7 +88,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for AvgPool2DCirc
   }
 }
 
-impl GadgetConsumer for AvgPool2DCircuit {
+impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize> GadgetConsumer for AvgPool2DCircuit<F, C, D> {
   fn used_gadgets(&self, _layer_params: Vec<i64>) -> Vec<crate::gadgets::gadget::GadgetType> {
     vec![GadgetType::DivRound]
   }

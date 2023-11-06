@@ -81,7 +81,9 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
           )
         }
         LayerType::AvgPool2D => {
-          let avg_pool_2d_circuit = AvgPool2DCircuit {};
+          let avg_pool_2d_circuit = AvgPool2DCircuit::<F, C, D> {
+            _marker: PhantomData,
+          };
           avg_pool_2d_circuit.make_circuit(
             builder,
             &vec_inps,
@@ -116,8 +118,9 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
           )
         }
         LayerType::Conv2D => {
-          let conv_2d_circuit = Conv2DCircuit {
+          let conv_2d_circuit = Conv2DCircuit::<F, C, D> {
             config: layer_config.clone(),
+            _marker: PhantomData,
           };
           conv_2d_circuit.make_circuit(
             builder,
