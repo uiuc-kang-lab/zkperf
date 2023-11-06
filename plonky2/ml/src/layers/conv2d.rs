@@ -265,7 +265,6 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
   ) -> Vec<Array<Rc<Target>, IxDyn>> {
     let conv_config = &Self::param_vec_to_config(self.config.layer_params.clone());
     let zero_t = builder.zero();
-    let zero = constants.get(&0).unwrap();
     // let z_target = builder.constant(**zero);
 
     let inp = &tensors[0];
