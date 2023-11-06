@@ -1,11 +1,9 @@
-use plonky2::plonk::config::Hasher;
 use std::{collections::HashMap, marker::PhantomData, rc::Rc};
 
 use ndarray::{Array, ArrayView, Axis, IxDyn};
 use plonky2::{
   hash::hash_types::RichField,
   iop::{
-    challenger::Challenger,
     generator::{GeneratedValues, SimpleGenerator},
     target::Target,
     witness::{PartitionWitness, Witness, WitnessWrite},
@@ -71,6 +69,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F> + 'static, const D
     constants: &HashMap<i64, Rc<F>>,
     gadget_config: Rc<GadgetConfig>,
     layer_config: &LayerConfig,
+    rand_targets: &mut Vec<Target>,
   ) -> Vec<Array<Rc<Target>, IxDyn>> {
     assert!(tensors.len() <= 3);
     let activation = self.get_activation(&layer_config.layer_params);
@@ -92,21 +91,27 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F> + 'static, const D
     });
 
     // Fill random values
-    let r1_ref = builder.add_virtual_targets(mm_result.shape()[0]);
-    let r2_ref = builder.add_virtual_targets(mm_result.shape()[1]);
-    let input_flat = input.iter().map(|t| *t);
-    let weight_flat = weight.iter().map(|t| *t);
-    let input_flat = input_flat.chain(weight_flat).collect::<Vec<_>>();
-    builder.add_simple_generator(RandGenerator::<F, C, D> {
-      input: input_flat.clone(),
-      output: r1_ref.clone(),
-      _marker: PhantomData,
-    });
-    builder.add_simple_generator(RandGenerator::<F, C, D> {
-      input: input_flat.clone(),
-      output: r2_ref.clone(),
-      _marker: PhantomData,
-    });
+    let r1_ref = {
+      let mut ts = vec![];
+      for _ in 0..mm_result.shape()[0] {
+        let t = builder.add_virtual_public_input();
+        ts.push(t);
+      }
+      builder.register_public_inputs(&ts);
+      ts
+    };
+    let r2_ref = {
+      let mut ts = vec![];
+      for _ in 0..mm_result.shape()[1] {
+        let t = builder.add_virtual_public_input();
+        ts.push(t);
+      }
+      builder.register_public_inputs(&ts);
+      ts
+    };
+    rand_targets.extend(r1_ref.iter());
+    rand_targets.extend(r2_ref.iter());
+
     let r1_ref = r1_ref.iter().collect::<Vec<_>>();
     let r2_ref = r2_ref.iter().collect::<Vec<_>>();
 
@@ -315,55 +320,6 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D> for Mat
       input,
       weight,
       outp,
-    })
-  }
-}
-
-// TODO put this in a better place
-#[derive(Debug, Default)]
-pub struct RandGenerator<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize> {
-  input: Vec<Target>,
-  output: Vec<Target>,
-  _marker: PhantomData<C>,
-}
-
-impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F> + 'static, const D: usize>
-  SimpleGenerator<F, D> for RandGenerator<F, C, D>
-{
-  fn id(&self) -> String {
-    "RandGenerator".to_string()
-  }
-
-  fn dependencies(&self) -> Vec<Target> {
-    self.input.clone()
-  }
-
-  fn run_once(&self, witness: &PartitionWitness<F>, out_buffer: &mut GeneratedValues<F>) {
-    let mut challenger = Challenger::<F, C::Hasher>::new();
-    let input_vals = witness.get_targets(&self.input);
-    let input_hash = C::InnerHasher::hash_no_pad(&input_vals);
-
-    challenger.observe_hash::<C::InnerHasher>(input_hash);
-    let r_base = challenger.get_challenge();
-    let mut r = r_base;
-    for i in 0..self.output.len() {
-      out_buffer.set_target(self.output[i], r);
-      r *= r_base;
-    }
-  }
-
-  fn serialize(&self, dst: &mut Vec<u8>, _common_data: &CommonCircuitData<F, D>) -> IoResult<()> {
-    dst.write_target_vec(&self.input)?;
-    dst.write_target_vec(&self.output)
-  }
-
-  fn deserialize(src: &mut Buffer, _common_data: &CommonCircuitData<F, D>) -> IoResult<Self> {
-    let input = src.read_target_vec()?;
-    let output = src.read_target_vec()?;
-    Ok(Self {
-      input,
-      output,
-      _marker: PhantomData,
     })
   }
 }

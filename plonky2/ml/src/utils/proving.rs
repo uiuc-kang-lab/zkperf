@@ -1,7 +1,15 @@
 use log::Level;
 use ndarray::Array;
+use plonky2::fri::oracle::PolynomialBatch;
+use plonky2::iop::challenger::Challenger;
+use plonky2::iop::witness::WitnessWrite;
+use plonky2::plonk::circuit_data::CircuitData;
 use plonky2::plonk::prover::prove;
+use plonky2::plonk::prover::set_lookup_wires;
 use plonky2::util::timing::TimingTree;
+use plonky2_field::polynomial::PolynomialValues;
+use plonky2_maybe_rayon::MaybeParIter;
+use plonky2_maybe_rayon::ParallelIterator;
 use serde_json::json;
 use std::io::prelude::*;
 use std::{fs::File, io::BufWriter, time::Instant};
@@ -16,13 +24,17 @@ use plonky2::{
 
 use crate::{gadgets::gadget::convert_to_u64, model::ModelCircuit};
 
-pub fn time_circuit<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const D: usize>(
+pub fn time_circuit<
+  F: RichField + Extendable<D>,
+  C: GenericConfig<D, F = F> + 'static,
+  const D: usize,
+>(
   circuit: ModelCircuit,
   mut builder: CircuitBuilder<F, D>,
-  pw: PartialWitness<F>,
+  mut pw: PartialWitness<F>,
   outp_json: String,
 ) {
-  let result_targets = circuit.construct::<F, C, D>(&mut builder);
+  let (result_targets, rand_targets) = circuit.construct::<F, C, D>(&mut builder);
 
   println!("building circuit");
   let start = Instant::now();
@@ -30,15 +42,54 @@ pub fn time_circuit<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 
   let build_duration = start.elapsed();
   println!("circuit build duration: {:?}", build_duration);
 
+  println!("generating random values");
+  // set the pw_commit rand targets to 0
+  let mut pw_commit = pw.clone();
+  for t in &rand_targets {
+    pw_commit.set_target(*t, F::ZERO);
+  }
+
+  let CircuitData {
+    prover_only: ref prover_data,
+    verifier_only: _,
+    common: ref common_data,
+  } = data;
+
+  let mut partition_witness = generate_partial_witness(pw_commit, &prover_data, &common_data);
+  set_lookup_wires(&prover_data, &common_data, &mut partition_witness);
+
+  let witness = partition_witness.full_witness();
+
+  let wires_values: Vec<PolynomialValues<F>> = witness
+    .wire_values
+    .par_iter()
+    .map(|column| PolynomialValues::new(column.clone()))
+    .collect();
+
+  let wires_commitment = PolynomialBatch::<F, C, D>::from_values(
+    wires_values,
+    common_data.config.fri_config.rate_bits,
+    common_data.config.zero_knowledge,
+    common_data.config.fri_config.cap_height,
+    &mut TimingTree::default(),
+    prover_data.fft_root_table.as_ref(),
+  );
+
+  let mut challenger = Challenger::<F, C::Hasher>::new();
+
+  // Observe the instance.
+  challenger.observe_cap::<C::Hasher>(&wires_commitment.merkle_tree.cap);
+  let rand_values = challenger.get_n_challenges(rand_targets.len());
+
+  for i in 0..rand_targets.len() {
+    pw.set_target(rand_targets[i], rand_values[i]);
+  }
+
   let pw2 = pw.clone();
 
   println!("proving circuit");
   let mut timing = TimingTree::new("prove", Level::Info);
-  let proof = prove::<F, C, D>(
-    &data.prover_only,
-    &data.common,
-    pw,
-    &mut timing).unwrap();
+  let proof = prove::<F, C, D>(&prover_data, &common_data, pw, &mut timing).unwrap();
   timing.pop();
   timing.print();
 
@@ -59,7 +110,7 @@ pub fn time_circuit<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 
   println!("Verifying time: {:?}", verify_duration);
 
   println!("generating witness");
-  let witness = generate_partial_witness(pw2, &data.prover_only, &data.common);
+  let witness = generate_partial_witness(pw2, &prover_data, &common_data);
 
   if result_targets.len() > 0 {
     let out = Array::from_iter(result_targets[0].iter().cloned());
@@ -93,5 +144,4 @@ pub fn time_circuit<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 
 
   let mut file = File::create(outp_json).unwrap();
   let _ = file.write_all(json_string.as_bytes());
-
 }

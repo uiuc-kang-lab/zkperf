@@ -20,6 +20,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for LogisticCircu
     _constants: &HashMap<i64, Rc<F>>,
     gadget_config: Rc<GadgetConfig>,
     _layer_config: &LayerConfig,
+    _rand_targets: &mut Vec<Target>
   ) -> Vec<Array<Rc<Target>, IxDyn>> {    let inp = &tensors[0];
     let inp_vec = inp.iter().map(|x| x.as_ref()).collect::<Vec<_>>();
 

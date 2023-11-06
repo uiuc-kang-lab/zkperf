@@ -51,7 +51,6 @@ pub struct ModelCircuit {
   pub k: usize,
   pub bits_per_elem: usize,
   pub inp_idxes: Vec<i64>,
-  pub num_random: i64,
 }
 
 impl ModelCircuit {
@@ -182,7 +181,6 @@ impl ModelCircuit {
 
     let mut used_gadgets = BTreeSet::new();
 
-    let num_random = config.num_random.unwrap_or(0);
     let dag_config = {
       let ops = config
         .layers
@@ -297,7 +295,6 @@ impl ModelCircuit {
         k: config.k as usize,
         bits_per_elem: config.bits_per_elem.unwrap_or(config.k) as usize,
         inp_idxes: config.inp_idxes.clone(),
-        num_random,
       },
       builder,
       pw,
@@ -307,7 +304,7 @@ impl ModelCircuit {
   pub fn construct<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const D: usize>(
     &self,
     builder: &mut CircuitBuilder<F, D>,
-  ) -> Vec<Array<Rc<Target>, IxDyn>> {
+  ) -> (Vec<Array<Rc<Target>, IxDyn>>, Vec<Target>) {
     let gadget = &GADGET_CONFIG;
     let cloned_gadget = gadget.lock().unwrap().clone();
     let constants = self.assign_constants(Rc::new(cloned_gadget.clone()));
@@ -315,14 +312,12 @@ impl ModelCircuit {
     // make the circuit
     let tensors_vec = self.tensor_map_to_vec(&self.tensors);
     let dag_circuit = DAGLayerCircuit::<F, C, D>::construct(self.dag_config.clone());
-    let result_targets = dag_circuit.make_circuit(
+    dag_circuit.make_circuit(
       builder,
       &tensors_vec,
       &constants,
       Rc::new(cloned_gadget),
       &LayerConfig::default(),
-    );
-
-    result_targets
+    )
   }
 }

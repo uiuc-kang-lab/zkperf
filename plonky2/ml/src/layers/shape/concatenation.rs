@@ -18,6 +18,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for Concatenation
     _constants: &HashMap<i64, Rc<F>>,
     _gadget_config: Rc<GadgetConfig>,
     layer_config: &LayerConfig,
+    _rand_targets: &mut Vec<Target>,
   ) -> Vec<Array<Rc<Target>, IxDyn>> {
     let axis = layer_config.layer_params[0] as usize;
     let views = tensors.iter().map(|x| x.view()).collect::<Vec<_>>();

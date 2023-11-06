@@ -37,6 +37,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
     constants: &HashMap<i64, Rc<F>>,
     gadget_config: Rc<GadgetConfig>,
     layer_config: &LayerConfig,
+    rand_targets: &mut Vec<Target>
   ) -> Vec<Array<Rc<Target>, IxDyn>> {
     let inp1 = &tensors[0];
     let inp2 = &tensors[1];
@@ -88,6 +89,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
         constants,
         gadget_config.clone(),
         &tmp_config,
+        rand_targets
       );
       outp.extend(outp_slice[0].iter().map(|x| x.clone()).collect::<Vec<_>>());
     }

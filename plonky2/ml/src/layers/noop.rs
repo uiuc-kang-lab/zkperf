@@ -17,6 +17,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for NoopCircuit {
     _constants: &HashMap<i64, Rc<F>>,
     _gadget_config: Rc<GadgetConfig>,
     layer_config: &LayerConfig,
+    _rand_targets: &mut Vec<Target>
   ) -> Vec<Array<Rc<Target>, IxDyn>> {
     let ret_idx = layer_config.layer_params[0] as usize;
     vec![tensors[ret_idx].clone()]

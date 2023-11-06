@@ -226,6 +226,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for Conv2DCircuit
     constants: &HashMap<i64, Rc<F>>,
     gadget_config: Rc<GadgetConfig>,
     _layer_config: &LayerConfig,
+    _rand_targets: &mut Vec<Target>
   ) -> Vec<Array<Rc<Target>, IxDyn>> {
     let conv_config = &Self::param_vec_to_config(self.config.layer_params.clone());
     let zero_t = builder.zero();
@@ -237,7 +238,6 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for Conv2DCircuit
     let h = inp.shape()[1];
     let w = inp.shape()[2];
     assert!(h == w);
-    // TODO implement adder for h > DOTPROD_SIZE
 
     let ch = weights.shape()[1];
     let cw = weights.shape()[2];
@@ -281,49 +281,6 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for Conv2DCircuit
       }
       ConvLayerEnum::DepthwiseConv2D => panic!("DepthwiseConv2D is unimplemented"),
     };
-
-    // TODO: assumes padding 0, stride 1
-    // let mut conv_outp = vec![];
-    // for batch in 0..batch_size {
-    //   for x in 0..oh {
-    //     for y in 0..ow {
-    //       for chan_out in 0..oc {
-    //         for chan_in in 0..ic {
-    //           let row = rows[[batch, x, y, chan_out, chan_in]];
-    //           for i in 0..DOTPROD_SIZE {
-    //             for j in 0..DOTPROD_SIZE {
-    //               if i < ch && j < cw {
-    //                 builder.connect(
-    //                   *inp[[batch, x + i, y + j, chan_in]],
-    //                   Target::wire(row, DotProductGate::wire_ijth_input(i, j)),
-    //                 );
-    //                 builder.connect(
-    //                   *weights[[chan_out, i, j, chan_in]],
-    //                   Target::wire(row, DotProductGate::wire_ijth_weight(i, j)),
-    //                 );
-    //               } else {
-    //                 builder.connect(
-    //                   z_target,
-    //                   Target::wire(row, DotProductGate::wire_ijth_input(i, j)),
-    //                 );
-    //                 builder.connect(
-    //                   zero_target,
-    //                   Target::wire(row, DotProductGate::wire_ijth_weight(i, j)),
-    //                 );
-    //               }
-    //             }
-    //           }
-    //         }
-    //         conv_outp.push(builder.add_many((0..ic).map(|i| {
-    //           Target::wire(
-    //             rows[[batch, x, y, chan_out, i]],
-    //             DotProductGate::wire_output(),
-    //           )
-    //         })));
-    //       }
-    //     }
-    //   }
-    // }
 
     let mut biases = vec![];
     for bias in splat_biases.iter() {

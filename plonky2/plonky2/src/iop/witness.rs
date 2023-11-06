@@ -254,7 +254,7 @@ pub trait Witness<F: Field>: WitnessWrite<F> {
 
 #[derive(Clone, Debug)]
 pub struct MatrixWitness<F: Field> {
-    pub(crate) wire_values: Vec<Vec<F>>,
+    pub wire_values: Vec<Vec<F>>,
 }
 
 impl<F: Field> MatrixWitness<F> {

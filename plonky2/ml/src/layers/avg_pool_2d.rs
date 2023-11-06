@@ -27,6 +27,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for AvgPool2DCirc
     _constants: &HashMap<i64, Rc<F>>,
     gadget_config: Rc<GadgetConfig>,
     layer_config: &LayerConfig,
+    _rand_targets: &mut Vec<Target>
   ) -> Vec<Array<Rc<Target>, IxDyn>> {
     // assert!(weight_height == weight_width);
 

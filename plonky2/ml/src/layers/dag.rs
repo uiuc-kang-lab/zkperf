@@ -47,12 +47,13 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
     constants: &HashMap<i64, Rc<F>>,
     gadget_config: Rc<GadgetConfig>,
     _layer_config: &LayerConfig,
-  ) -> Vec<Array<Rc<Target>, IxDyn>> {
+  ) -> (Vec<Array<Rc<Target>, IxDyn>>, Vec<Target>) {
     // Tensor map
     let mut tensor_map = HashMap::new();
     for (idx, tensor) in tensors.iter().enumerate() {
       tensor_map.insert(idx, tensor.clone());
     }
+    let mut rand_targets = vec![];
 
     // Compute the dag
     for (layer_idx, layer_config) in self.dag_config.ops.iter().enumerate() {
@@ -76,6 +77,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
             constants,
             gadget_config.clone(),
             &layer_config,
+            &mut rand_targets
           )
         }
         LayerType::AvgPool2D => {
@@ -86,6 +88,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
             constants,
             gadget_config.clone(),
             &layer_config,
+            &mut rand_targets
           )
         }
         LayerType::BatchMatMul => {
@@ -98,6 +101,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
             constants,
             gadget_config.clone(),
             &layer_config,
+            &mut rand_targets
           )
         }
         LayerType::Concatenation => {
@@ -108,6 +112,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
             constants,
             gadget_config.clone(),
             &layer_config,
+            &mut rand_targets
           )
         }
         LayerType::Conv2D => {
@@ -120,6 +125,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
             constants,
             gadget_config.clone(),
             &layer_config,
+            &mut rand_targets
           )
         }
         LayerType::FullyConnected => {
@@ -133,6 +139,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
             constants,
             gadget_config.clone(),
             &layer_config,
+            &mut rand_targets
           )
         }
         LayerType::Gather => {
@@ -143,6 +150,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
             constants,
             gadget_config.clone(),
             &layer_config,
+            &mut rand_targets
           )
         }
         LayerType::Logistic => {
@@ -153,6 +161,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
             constants,
             gadget_config.clone(),
             &layer_config,
+            &mut rand_targets
           )
         }
         LayerType::Mul => {
@@ -163,6 +172,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
             constants,
             gadget_config.clone(),
             &layer_config,
+            &mut rand_targets
           )
         }
         LayerType::Noop => {
@@ -173,6 +183,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
             constants,
             gadget_config.clone(),
             &layer_config,
+            &mut rand_targets
           )
         }
         LayerType::Pack => {
@@ -183,6 +194,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
             constants,
             gadget_config.clone(),
             &layer_config,
+            &mut rand_targets
           )
         }
         LayerType::Reshape => {
@@ -193,6 +205,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
             constants,
             gadget_config.clone(),
             &layer_config,
+            &mut rand_targets
           )
         }
         LayerType::Split => {
@@ -203,6 +216,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
             constants,
             gadget_config.clone(),
             &layer_config,
+            &mut rand_targets
           )
         }
         LayerType::Transpose => {
@@ -213,6 +227,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
             constants,
             gadget_config.clone(),
             &layer_config,
+            &mut rand_targets
           )
         }
       };
@@ -229,6 +244,6 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
       final_out.push(tensor_map.get(idx).unwrap().clone());
     }
 
-    final_out
+    (final_out, rand_targets)
   }
 }

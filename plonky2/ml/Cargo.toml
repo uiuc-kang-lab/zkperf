@@ -29,6 +29,7 @@ num-traits = "0.2.15"
 once_cell = "1.15.0"
 plonky2 = { path = "../plonky2", default-features = true }
 plonky2_field = { git="https://github.com/0xPolygonZero/plonky2", package="plonky2_field", rev="41a29f069b6731c4af2644337959fbad8c771c77" }
+plonky2_maybe_rayon = { git="https://github.com/0xPolygonZero/plonky2", package="plonky2_maybe_rayon", rev="41a29f069b6731c4af2644337959fbad8c771c77" }
 rand = "0.8.5"
 
 rmp-serde = "1.1.1"

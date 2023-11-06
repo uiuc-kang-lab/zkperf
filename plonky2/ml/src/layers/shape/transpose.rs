@@ -18,6 +18,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for TransposeCirc
     _constants: &HashMap<i64, Rc<F>>,
     _gadget_config: Rc<GadgetConfig>,
     layer_config: &LayerConfig,
+    _rand_targets: &mut Vec<Target>
   ) -> Vec<Array<Rc<Target>, IxDyn>> {
     assert_eq!(layer_config.layer_params.len() % 2, 0);
     let ndim = layer_config.layer_params.len() / 2;
