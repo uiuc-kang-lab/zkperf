@@ -65,6 +65,7 @@ def plot_wire_commit(data):
         fft = bd_dict["FFT + blinding"]
         lde = bd_dict["transpose LDEs"]
         merkle = bd_dict["build Merkle tree"]
+        print(dict["name"], generator, witness, poly, ifft, fft, lde, merkle)
         generators.append(generator)
         witnesses.append(witness)
         wire_polys.append(poly)
@@ -80,8 +81,9 @@ def plot_wire_commit(data):
         "wire commitment IFFT": np.array(iffts),
         "wire commitment FFT + blinding": np.array(ffts),
         "wire commitment transpose LDEs": np.array(ldes),
-        "wire commitment Merkle tree": np.array(merkle),
+        "wire commitment Merkle tree": np.array(merkles),
     }
+    print(times)
     fig, ax = plt.subplots()
     bottom = np.zeros(len(tasks))
 
@@ -125,7 +127,7 @@ def plot_arg_commit(data):
         "argument commitment IFFT": np.array(iffts),
         "argument commitment FFT + blinding": np.array(ffts),
         "argument commitment transpose LDEs": np.array(ldes),
-        "argument commitment Merkle tree": np.array(merkle),
+        "argument commitment Merkle tree": np.array(merkles),
     }
     fig, ax = plt.subplots()
     bottom = np.zeros(len(tasks))
@@ -170,7 +172,7 @@ def plot_quotient_commit(data):
         "split up quotient polys": np.array(splits),
         "quotient commitment FFT + blinding": np.array(ffts),
         "quotient commitment transpose LDEs": np.array(ldes),
-        "quotient commitment Merkle tree": np.array(merkle),
+        "quotient commitment Merkle tree": np.array(merkles),
     }
     fig, ax = plt.subplots()
     bottom = np.zeros(len(tasks))

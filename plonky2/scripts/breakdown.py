@@ -35,8 +35,8 @@ def get_breakdown(name, input_file, output_json, output_csv):
             index = line.index(']') + 1
             line_data = line[index:].strip()
 
-            (name, time) = get_kv(line_data)
             if pipe_count == 0:
+              (name, time) = get_kv(line_data)
               dict_stack = [dict_stack[0]]
               current_dict = dict_stack[-1]
               current_dict[name] = {"time": time}
@@ -50,6 +50,7 @@ def get_breakdown(name, input_file, output_json, output_csv):
               current_dict[name + " breakdown"] = {}
               dict_stack.append(current_dict[name + " breakdown"])
               current_dict = dict_stack[-1]
+              (name, time) = get_kv(line_data)
               current_dict[name] = time
 
               time_stack.append(prev_time)
@@ -59,6 +60,7 @@ def get_breakdown(name, input_file, output_json, output_csv):
               csv_writer.writerow(csv_row)
             elif pipe_count == prev_pipe_count:
               current_dict = dict_stack[-1]
+              (name, time) = get_kv(line_data)
               current_dict[name] = time
               prev_time = time
 
@@ -69,6 +71,7 @@ def get_breakdown(name, input_file, output_json, output_csv):
             elif pipe_count < prev_pipe_count:
               dict_stack.pop()
               current_dict = dict_stack[-1]
+              (name, time) = get_kv(line_data)
               current_dict[name] = time
 
               time_stack.pop()
