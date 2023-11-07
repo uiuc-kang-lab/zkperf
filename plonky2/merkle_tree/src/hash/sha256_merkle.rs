@@ -439,7 +439,7 @@ mod tests {
       
         let json_string = serde_json::to_string(&results).unwrap();
       
-        let mut file = File::create("merkle.json").unwrap();
+        let mut file = File::create("../merkle.json").unwrap();
         let _ = file.write_all(json_string.as_bytes());
     }
 }
