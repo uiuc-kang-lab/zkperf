@@ -7,6 +7,7 @@ def get_kv(line):
   value = line.split("|")[-1].split()[0]
   if value.endswith('s'):
     value = value[:-1]
+  value = float(value)
   return (key, value)
 
 def get_csv_row(name, time, stack_len, max_depth):
@@ -19,6 +20,8 @@ def get_breakdown(name, input_file, output_json, output_csv):
     main_data = { "name": name }
     csv_writer.writerow([name])
     dict_stack = [main_data]
+    time_stack = []
+    prev_time = 0.
     prev_pipe_count = None
     max_depth = 2
 
@@ -32,12 +35,13 @@ def get_breakdown(name, input_file, output_json, output_csv):
             index = line.index(']') + 1
             line_data = line[index:].strip()
 
+            (name, time) = get_kv(line_data)
             if pipe_count == 0:
-              (name, time) = get_kv(line_data)
               dict_stack = [dict_stack[0]]
               current_dict = dict_stack[-1]
               current_dict[name] = {"time": time}
               dict_stack.append(current_dict[name])
+              prev_time = time
 
               csv_row = get_csv_row(name, time, len(dict_stack), max_depth)
               csv_writer.writerow(csv_row)
@@ -46,25 +50,32 @@ def get_breakdown(name, input_file, output_json, output_csv):
               current_dict[name + " breakdown"] = {}
               dict_stack.append(current_dict[name + " breakdown"])
               current_dict = dict_stack[-1]
-              (name, time) = get_kv(line_data)
               current_dict[name] = time
 
-              csv_row = get_csv_row(name, time, len(dict_stack), max_depth)
+              time_stack.append(prev_time)
+              top_time = time_stack[-1]
+              csv_time = str(time) + " ({:.2f}%)".format(time/top_time * 100)
+              csv_row = get_csv_row(name, csv_time, len(dict_stack), max_depth)
               csv_writer.writerow(csv_row)
             elif pipe_count == prev_pipe_count:
               current_dict = dict_stack[-1]
-              (name, time) = get_kv(line_data)
               current_dict[name] = time
+              prev_time = time
 
-              csv_row = get_csv_row(name, time, len(dict_stack), max_depth)
+              top_time = time_stack[-1]
+              csv_time = str(time) + " ({:.2f}%)".format(time/top_time * 100)
+              csv_row = get_csv_row(name, csv_time, len(dict_stack), max_depth)
               csv_writer.writerow(csv_row)
             elif pipe_count < prev_pipe_count:
               dict_stack.pop()
               current_dict = dict_stack[-1]
-              (name, time) = get_kv(line_data)
               current_dict[name] = time
 
-              csv_row = get_csv_row(name, time, len(dict_stack), max_depth)
+              time_stack.pop()
+              top_time = time_stack[-1]
+              prev_time = top_time
+              csv_time = str(time) + " ({:.2f}%)".format(time/top_time * 100)
+              csv_row = get_csv_row(name, csv_time, len(dict_stack), max_depth)
               csv_writer.writerow(csv_row)
 
             prev_pipe_count = pipe_count
