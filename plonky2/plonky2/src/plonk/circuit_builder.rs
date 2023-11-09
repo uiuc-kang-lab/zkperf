@@ -886,12 +886,15 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
     }
 
     pub fn print_gate_counts(&self, min_delta: usize) {
+        debug!("Num rows: {}", self.num_gates());
         // Print gate counts for each context.
         self.context_log
             .filter(self.num_gates(), min_delta)
             .print(self.num_gates());
 
         // Print total count of each gate type.
+        let mut total_constraints = 0;
+        let mut total_wires = 0;
         debug!("Total gate counts:");
         for gate in self.gates.iter().cloned() {
             let count = self
@@ -900,6 +903,16 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
                 .filter(|inst| inst.gate_ref == gate)
                 .count();
             debug!("- {} instances of {}", count, gate.0.id());
+            debug!("  - num constraints in gate: {}", gate.0.num_constraints());
+            debug!("  - num wires in gate: {}", gate.0.num_wires());
+            total_constraints += gate.0.num_constraints() * count;
+            total_wires += gate.0.num_wires() * count
+        }
+        debug!("Custom gate constraints: {}", total_constraints);
+        debug!("Custom gate wires: {}", total_wires);
+        debug!("Copy constraints: {}", self.copy_constraints.len());
+        for i in 0..self.lut_to_lookups.len() {
+            debug!("LUT {} lookups: {}", i, self.lut_to_lookups[i].len());
         }
     }
 

@@ -333,6 +333,7 @@ mod tests {
         // Input into circuit
         // let leaf_hashed = KeccakHash::<N>::hash_or_noop(&[leaves.clone()[10]]);
 
+        builder.print_gate_counts(0);
         println!("building circuit");
         let start = Instant::now();
         let data = builder.build::<C>();
@@ -422,7 +423,7 @@ mod tests {
         data.verify(proof).expect("verify error");
         timing.pop();
         timing.print();
-      
+
         let verify_duration = timing.duration();
         println!("Verifying time: {:?}", verify_duration);
 
@@ -436,9 +437,9 @@ mod tests {
           "VerifierTime": verify_duration.as_nanos() as f32 / 1000000.,
           "ProofSize": proof_len
         });
-      
+
         let json_string = serde_json::to_string(&results).unwrap();
-      
+
         let mut file = File::create("../merkle.json").unwrap();
         let _ = file.write_all(json_string.as_bytes());
     }

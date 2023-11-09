@@ -203,6 +203,7 @@ fn main() {
     };
 
     verify_message_circuit(&mut builder, msg_target, sig_target, pk_target);
+    builder.print_gate_counts(0);
 
     // dbg!(builder.num_gates());
     println!("building circuit");
