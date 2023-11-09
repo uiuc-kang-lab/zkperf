@@ -5,7 +5,7 @@ use plonky2::hash::hash_types::RichField;
 use plonky2::iop::target::Target;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 
-use crate::gates::dot_prod::{DOTPROD_SIZE, DotProductGate};
+use crate::gates::dot_prod::DotProductGate;
 
 use super::gadget::{Gadget, GadgetConfig};
 
@@ -40,7 +40,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Gadget<F, D> for DotProductCi
     single_inputs: &Vec<F>,
     _gadget_config: Rc<GadgetConfig>,
   ) -> Vec<Target> {
-    let dp_size = DOTPROD_SIZE;
+    let dp_size = DotProductGate::num_ops(&builder.config);
     let mut inputs = vec_inputs[0].clone();
     let mut weights = vec_inputs[1].clone();
     let zero = single_inputs[0];
@@ -58,17 +58,27 @@ impl<F: RichField + Extendable<D>, const D: usize> Gadget<F, D> for DotProductCi
     for i in 0..inputs.len() {
       if i % dp_size == 0 {
         dp_gate = builder.add_gate(
-          DotProductGate {},
+          DotProductGate::new_from_config(&builder.config),
           vec![single_inputs[0]],
         );
         dp_gates.push(dp_gate);
       }
       let wire_idx = i % dp_size;
-      builder.connect(*inputs[i], Target::wire(dp_gate, DotProductGate::wire_ith_input(wire_idx)));
-      builder.connect(*weights[i], Target::wire(dp_gate, DotProductGate::wire_ith_weight(wire_idx)));
+      builder.connect(
+        *inputs[i],
+        Target::wire(dp_gate, DotProductGate::wire_ith_input(wire_idx)),
+      );
+      builder.connect(
+        *weights[i],
+        Target::wire(dp_gate, DotProductGate::wire_ith_weight(wire_idx)),
+      );
     }
 
-    let outp = builder.add_many(dp_gates.iter().map(|row| Target::wire(*row, DotProductGate::wire_output())));
+    let outp = builder.add_many(
+      dp_gates
+        .iter()
+        .map(|row| Target::wire(*row, DotProductGate::wire_output())),
+    );
     vec![outp]
   }
 }

@@ -56,7 +56,7 @@ impl DivRoundGate {
 
 impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for DivRoundGate {
   fn id(&self) -> String {
-    "div round".to_string()
+    format!("{self:?}")
   }
 
   fn serialize(&self, dst: &mut Vec<u8>, _common_data: &CommonCircuitData<F, D>) -> IoResult<()> {

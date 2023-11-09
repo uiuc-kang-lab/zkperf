@@ -57,7 +57,7 @@ impl BiasDivRoundGate {
 
 impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for BiasDivRoundGate {
   fn id(&self) -> String {
-    "bias div round".to_string()
+    format!("{self:?}")
   }
 
   fn serialize(&self, dst: &mut Vec<u8>, _common_data: &CommonCircuitData<F, D>) -> IoResult<()> {

@@ -10,7 +10,7 @@ use plonky2::{
   iop::target::Target,
   iop::witness::{PartitionWitness, Witness, WitnessWrite},
   plonk::circuit_builder::CircuitBuilder,
-  plonk::circuit_data::CommonCircuitData,
+  plonk::circuit_data::{CircuitConfig, CommonCircuitData},
   plonk::vars::{
     EvaluationTargets, EvaluationVars, EvaluationVarsBase, EvaluationVarsBaseBatch,
     EvaluationVarsBasePacked,
@@ -19,54 +19,53 @@ use plonky2::{
 };
 
 #[derive(Debug, Clone)]
-pub struct DotProductGate {}
-
-pub const DOTPROD_SIZE: usize = 12;
+pub struct DotProductGate {
+  pub num_ops: usize,
+}
 
 impl DotProductGate {
-  pub fn construct() -> Self {
-    Self {}
+  pub fn new_from_config(config: &CircuitConfig) -> Self {
+    Self {
+      num_ops: Self::num_ops(config),
+    }
   }
 
-  pub fn wire_input_start() -> usize {
-    0
-  }
-
-  pub fn wire_weight_end() -> usize {
-    2 * DOTPROD_SIZE - 1
-  }
-
-  pub fn wire_ith_input(i: usize) -> usize {
-    i
-  }
-
-  pub fn wire_ith_weight(i: usize) -> usize {
-    DOTPROD_SIZE + i
+  pub(crate) fn num_ops(config: &CircuitConfig) -> usize {
+    let wires_per_entry = 2;
+    (config.num_routed_wires - 1) / wires_per_entry
   }
 
   pub fn wire_output() -> usize {
-    2 * DOTPROD_SIZE
+    0
+  }
+
+  pub fn wire_ith_input(i: usize) -> usize {
+    2 * i + 1
+  }
+
+  pub fn wire_ith_weight(i: usize) -> usize {
+    2 * (i + 1)
   }
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for DotProductGate {
   fn id(&self) -> String {
-    "dot product".to_string()
+    format!("{self:?}")
   }
 
   fn serialize(&self, dst: &mut Vec<u8>, _common_data: &CommonCircuitData<F, D>) -> IoResult<()> {
-    dst.write_usize(0)
+    dst.write_usize(self.num_ops)
   }
 
   fn deserialize(src: &mut Buffer, _common_data: &CommonCircuitData<F, D>) -> IoResult<Self> {
-    let _n = src.read_usize()?;
-    Ok(Self {})
+    let num_ops = src.read_usize()?;
+    Ok(Self { num_ops })
   }
 
   fn eval_unfiltered(&self, vars: EvaluationVars<F, D>) -> Vec<F::Extension> {
     let zero = vars.local_constants[0];
     let mut computed_output: <F as Extendable<D>>::Extension = F::Extension::ZEROS;
-    for i in 0..DOTPROD_SIZE {
+    for i in 0..self.num_ops {
       let input = vars.local_wires[Self::wire_ith_input(i)];
       let weight = vars.local_wires[Self::wire_ith_weight(i)];
       computed_output += (input - zero) * weight;
@@ -94,7 +93,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for DotProductGate
   ) -> Vec<ExtensionTarget<D>> {
     let zero = vars.local_constants[0];
 
-    let pairs = (0..DOTPROD_SIZE)
+    let pairs = (0..self.num_ops)
       .map(|i| {
         let input = vars.local_wires[Self::wire_ith_input(i)];
         let weight = vars.local_wires[Self::wire_ith_weight(i)];
@@ -114,6 +113,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for DotProductGate
     vec![WitnessGeneratorRef::new(
       DotProductGenerator {
         row,
+        num_ops: self.num_ops,
         zero: local_constants[0],
       }
       .adapter(),
@@ -121,7 +121,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for DotProductGate
   }
 
   fn num_wires(&self) -> usize {
-    2 * DOTPROD_SIZE + 1
+    2 * self.num_ops + 1
   }
 
   fn num_constants(&self) -> usize {
@@ -145,7 +145,7 @@ impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D> for
   ) {
     let mut computed_output = P::ZEROS;
     let zero = vars.local_constants[0];
-    for i in 0..DOTPROD_SIZE {
+    for i in 0..self.num_ops {
       let input = vars.local_wires[Self::wire_ith_input(i)];
       let weight = vars.local_wires[Self::wire_ith_weight(i)];
       computed_output += (input - zero) * weight;
@@ -158,6 +158,7 @@ impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D> for
 #[derive(Clone, Debug, Default)]
 pub struct DotProductGenerator<F: RichField + Extendable<D>, const D: usize> {
   row: usize,
+  num_ops: usize,
   zero: F,
 }
 
@@ -169,7 +170,7 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
   }
 
   fn dependencies(&self) -> Vec<Target> {
-    (DotProductGate::wire_input_start()..DotProductGate::wire_weight_end())
+    (DotProductGate::wire_ith_input(0)..DotProductGate::wire_ith_weight(self.num_ops - 1) + 1)
       .map(|i| Target::wire(self.row, i))
       .collect()
   }
@@ -178,7 +179,7 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
     let get_wire = |wire: usize| -> F { witness.get_target(Target::wire(self.row, wire)) };
 
     let mut computed_output = F::ZERO;
-    for i in 0..DOTPROD_SIZE {
+    for i in 0..self.num_ops {
       let input = get_wire(DotProductGate::wire_ith_input(i));
       let weight = get_wire(DotProductGate::wire_ith_weight(i));
       computed_output += (input - self.zero) * weight;
@@ -191,12 +192,14 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
 
   fn serialize(&self, dst: &mut Vec<u8>, _common_data: &CommonCircuitData<F, D>) -> IoResult<()> {
     dst.write_usize(self.row)?;
+    dst.write_usize(self.num_ops)?;
     dst.write_field(self.zero)
   }
 
   fn deserialize(src: &mut Buffer, _common_data: &CommonCircuitData<F, D>) -> IoResult<Self> {
     let row = src.read_usize()?;
+    let num_ops = src.read_usize()?;
     let zero = src.read_field()?;
-    Ok(Self { row, zero })
+    Ok(Self { row, num_ops, zero })
   }
 }

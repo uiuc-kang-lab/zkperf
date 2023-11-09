@@ -154,6 +154,7 @@ pub fn time_circuit<
   let (result_targets, rand_targets) = circuit.construct::<F, C, D>(&mut builder);
 
   if build_prove == "build" {
+    builder.print_gate_counts(0);
     println!("building circuit");
     let start = Instant::now();
     let data = builder.build::<C>();
