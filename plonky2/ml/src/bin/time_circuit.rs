@@ -13,7 +13,8 @@ fn main() {
   let inp_fname = std::env::args().nth(3).expect("input file path");
   let build_prove = std::env::args().nth(4).expect("build or prove");
   let outp_json = std::env::args().nth(5).expect("output json file path");
-
+  let x = std::env::args().nth(6).expect("sweep variable");
+  let sweep_variable = x.parse::<usize>().unwrap();
   if circuit_type != "mnist" &&  circuit_type != "dlrm" {
     panic!("Unsupported circuit type");
   }
@@ -26,6 +27,6 @@ fn main() {
   type C = KeccakGoldilocksConfig;
   type F = <C as GenericConfig<D>>::F;
   let (circuit, builder, pw) =
-    ModelCircuit::generate_from_file::<F, C, D>(&config_fname, &inp_fname);
+    ModelCircuit::generate_from_file::<F, C, D>(&config_fname, &inp_fname, &sweep_variable);
   time_circuit::<F, C, D>(circuit, builder, pw, circuit_type, build_prove, outp_json);
 }

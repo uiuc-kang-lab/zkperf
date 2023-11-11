@@ -103,14 +103,16 @@ impl ModelCircuit {
   pub fn generate_from_file<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
     config_file: &str,
     inp_file: &str,
+    sweep_variable: &usize,
   ) -> (ModelCircuit, CircuitBuilder<F, D>, PartialWitness<F>) {
     let config = load_model_msgpack(config_file, inp_file);
-    Self::generate_from_msgpack::<F, C, D>(config, true)
+    Self::generate_from_msgpack::<F, C, D>(config, true, sweep_variable)
   }
 
   pub fn generate_from_msgpack<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
     config: ModelMsgpack,
     panic_empty_tensor: bool,
+    sweep_variable: &usize
   ) -> (ModelCircuit, CircuitBuilder<F, D>, PartialWitness<F>) {
     let to_field = |x: i64| {
       let bias = 1 << 31;
@@ -136,9 +138,13 @@ impl ModelCircuit {
       _ => panic!("unknown op: {}", x),
     };
 
+    if *sweep_variable < 25{
+      panic!("Invalid Sweep Variable")
+    }
+
     let mnist_config: CircuitConfig = CircuitConfig {
       num_constants: 3,
-      num_routed_wires: 25,
+      num_routed_wires: *sweep_variable,
       ..CircuitConfig::standard_recursion_zk_config()
     };
     let mut builder = CircuitBuilder::<F, D>::new(mnist_config);
