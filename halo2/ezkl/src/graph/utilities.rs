@@ -1152,6 +1152,7 @@ pub fn new_op_from_onnx(
             let padding = match &pool_spec.padding {
                 PaddingSpec::Explicit(b, a) => [(b[0], b[1]), (a[0], a[1])],
                 PaddingSpec::ExplicitOnnxPool(b, a, _) => [(b[0], b[1]), (a[0], a[1])],
+                PaddingSpec::Valid => [(0, 0); 2],
                 _ => {
                     return Err(Box::new(GraphError::MissingParams("padding".to_string())));
                 }
