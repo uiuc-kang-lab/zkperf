@@ -7,7 +7,7 @@ use std::{
 use halo2_proofs::circuit::Value;
 use halo2curves::ff::PrimeField;
 use itertools::Itertools;
-use log::{error, trace, debug};
+use log::{error, trace};
 use rayon::{
     prelude::{
         IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
@@ -1897,7 +1897,6 @@ pub fn conv<F: PrimeField + TensorType + PartialOrd + std::marker::Send + std::m
 
     let og_image_dims = image.dims().to_vec();
     let og_kernel_dims = kernel.dims().to_vec();
-    debug!("image: {:?}, kernel: {:?}", og_image_dims, og_kernel_dims);
     // ensure inputs are 4D tensors
     if og_image_dims.len() == 3 {
         // adds a dummy image_channels dimension
@@ -1908,7 +1907,6 @@ pub fn conv<F: PrimeField + TensorType + PartialOrd + std::marker::Send + std::m
         } else {
             new_dims.insert(0, 1);
         }
-        debug!("new_image: {:?}", og_image_dims);
         image.reshape(&new_dims)?;
     }
 
@@ -2032,7 +2030,6 @@ pub fn conv<F: PrimeField + TensorType + PartialOrd + std::marker::Send + std::m
     }
 
     let reshape_output = |output: &mut Tensor<ValType<F>>| {
-        debug!("vert_slides: {}", vert_slides);
         // remove dummy batch dimension if we added one
         if og_image_dims.len() == 3 && vert_slides == 1 {
             output.reshape(&[output_channels, vert_slides, horz_slides]);

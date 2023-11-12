@@ -1,10 +1,10 @@
 #!/bin/bash
 
 BUILD_DIR=.
-OUTPUT="dlrm_measurement.json"
+OUTPUT="dlrm_ezkl_measurement.json"
 EXECUTABLE="./target/release/ezkl"
 NAME=dlrm_mlp_checked
-PATH="examples/dlrm"
+EXAMPLE_PATH="examples/dlrm"
 
 if [ ! -f "$OUTPUT" ]; then
     touch "$BUILD_DIR"/"$OUTPUT"
@@ -19,12 +19,12 @@ echo "$(jq --arg tmp $(lscpu | grep "Model name:" | sed -e "s/^Model name:      
 '. += {"Hardware": $tmp }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 
 echo "****Setup****"
-$EXECUTABLE gen-settings -M "$PATH/$NAME.onnx"
-$EXECUTABLE calibrate-settings -M "$PATH/$NAME.onnx" -D "$PATH/input.json" --target resources
+$EXECUTABLE gen-settings -M "$EXAMPLE_PATH/$NAME.onnx"
+$EXECUTABLE calibrate-settings -M "$EXAMPLE_PATH/$NAME.onnx" -D "$EXAMPLE_PATH/input.json" --target resources
 $EXECUTABLE get-srs -S settings.json
-$EXECUTABLE compile-circuit -M "$PATH/$NAME.onnx" -S settings.json --compiled-circuit "$NAME.ezkl"
+$EXECUTABLE compile-circuit -M "$EXAMPLE_PATH/$NAME.onnx" -S settings.json --compiled-circuit "$NAME.ezkl"
 $EXECUTABLE setup -M "$NAME.ezkl" --srs-path=kzg.srs --vk-path=vk.key --pk-path=pk.key
-$EXECUTABLE gen-witness -D "$PATH/input.json" -M "$NAME.ezkl"
+$EXECUTABLE gen-witness -D "$EXAMPLE_PATH/input.json" -M "$NAME.ezkl"
 
 echo "****GENERATING PROOF FOR SAMPLE INPUT****"
 start=`date +%s%N`

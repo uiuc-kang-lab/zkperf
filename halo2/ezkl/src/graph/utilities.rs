@@ -856,7 +856,7 @@ pub fn new_op_from_onnx(
                 PaddingSpec::Explicit(b, a) => [(b[0], b[1]), (a[0], a[1])],
                 PaddingSpec::ExplicitOnnxPool(b, a, _) => [(b[0], b[1]), (a[0], a[1])],
                 _ => {
-                    return Err(Box::new(GraphError::MissingParams("padding in MaxPool".to_string())));
+                    return Err(Box::new(GraphError::MissingParams("padding".to_string())));
                 }
             };
             let kernel_shape = &pool_spec.kernel_shape;
@@ -954,11 +954,11 @@ pub fn new_op_from_onnx(
                     } else if b.len() == 2 && a.len() == 1 {
                         [(b[0], b[1]), (a[0], a[0])]
                     } else {
-                        return Err(Box::new(GraphError::MissingParams("padding in Padding Spec, ConvUnary".to_string())));
+                        return Err(Box::new(GraphError::MissingParams("padding".to_string())));
                     }
                 }
                 _ => {
-                    return Err(Box::new(GraphError::MissingParams("padding in ConvUnary".to_string())));
+                    return Err(Box::new(GraphError::MissingParams("padding".to_string())));
                 }
             };
 
@@ -1025,7 +1025,7 @@ pub fn new_op_from_onnx(
                 PaddingSpec::Explicit(b, a) => [(b[0], b[1]), (a[0], a[1])],
                 PaddingSpec::ExplicitOnnxPool(b, a, _) => [(b[0], b[1]), (a[0], a[1])],
                 _ => {
-                    return Err(Box::new(GraphError::MissingParams("padding in DeconvUnary".to_string())));
+                    return Err(Box::new(GraphError::MissingParams("padding".to_string())));
                 }
             };
 
@@ -1152,9 +1152,8 @@ pub fn new_op_from_onnx(
             let padding = match &pool_spec.padding {
                 PaddingSpec::Explicit(b, a) => [(b[0], b[1]), (a[0], a[1])],
                 PaddingSpec::ExplicitOnnxPool(b, a, _) => [(b[0], b[1]), (a[0], a[1])],
-                PaddingSpec::Valid => [(0, 0); 2],
                 _ => {
-                    return Err(Box::new(GraphError::MissingParams("padding in SumPool".to_string())));
+                    return Err(Box::new(GraphError::MissingParams("padding".to_string())));
                 }
             };
             let kernel_shape = &pool_spec.kernel_shape;

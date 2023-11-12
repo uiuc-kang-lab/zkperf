@@ -1157,9 +1157,6 @@ impl Model {
 
         for (idx, node) in self.graph.nodes.iter() {
             let mut values: Vec<ValTensor<Fp>> = if !node.is_input() {
-                debug!(
-                    "Indexing: {}, {:?}", node.as_str(), node.inputs()
-                );
                 node.inputs()
                     .iter()
                     .map(|(idx, outlet)| results.get(idx).unwrap()[*outlet].clone())
@@ -1204,7 +1201,7 @@ impl Model {
                         // we get the max as for fused nodes this corresponds to the node output
                         results.insert(*idx, vec![vt.clone()]);
                         //only use with mock prover
-                        debug!("------------ output node {:?}: {:?}, {:?}", idx, vt.show(), vt.dims());
+                        debug!("------------ output node {:?}: {:?}", idx, vt.show());
                     }
                 }
                 NodeType::SubGraph {
