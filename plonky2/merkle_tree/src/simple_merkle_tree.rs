@@ -3,38 +3,49 @@
 use itertools::Itertools;
 use num::Integer;
 use plonky2::field::goldilocks_field::GoldilocksField;
-use plonky2::hash::hash_types::BytesHash;
-use plonky2::hash::keccak::KeccakHash;
-use plonky2::plonk::config::Hasher;
+use plonky2_field::types::PrimeField64;
 use plonky2_util::log2_strict;
+use sha3::Digest;
+use sha3::Keccak256;
 
 #[derive(Debug, Clone)]
 pub struct MerkleTree {
     pub count_levels: usize,
-    pub tree: Vec<Vec<BytesHash<32>>>, // contains vectors of hashes for the levels in the tree (count_levels-1 vectors)
-    pub root: BytesHash<32>,
+    pub tree: Vec<Vec<Vec<u8>>>, // contains vectors of hashes for the levels in the tree (count_levels-1 vectors)
+    pub root: Vec<u8>,
 }
 
 impl MerkleTree {
-    // From list of hashes with length len, take each pair and hash them, resulting in a new vector of hashes of length len/2
-    fn next_level_hashes(current_level: Vec<BytesHash<32>>) -> Vec<BytesHash<32>> {
-        let temp: Vec<&[BytesHash<32>]> = current_level.chunks(2).into_iter().collect_vec();
-        let next_level: Vec<BytesHash<32>> = temp
+    fn keccak256(inp: &[u8]) -> Vec<u8> {
+        let mut hasher = Keccak256::new();
+        hasher.update(inp);
+        let result = hasher.finalize();
+        hex::decode(hex::encode(result)).unwrap()
+    }
+
+    fn next_level_hashes(current_level: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
+        let temp: Vec<&[Vec<u8>]> = current_level.chunks(2).into_iter().collect_vec();
+        let next_level = temp
             .into_iter()
-            .map(|x| <KeccakHash<32> as Hasher<GoldilocksField>>::two_to_one(x[0], x[1]))
+            .map(|x| {
+                let inp = [x[0].clone(), x[1].clone()].concat();
+                Self::keccak256(inp.as_slice())
+            })
             .collect();
         next_level
     }
 
-    // Create a Merkle Tree given 2^n leaves.
     pub fn build(leaves: Vec<GoldilocksField>) -> Self {
         // This panics if length is not a power of 2
         let count_levels = log2_strict(leaves.len());
 
         // To get the first level, hash all leaves
-        let level0: Vec<BytesHash<32>> = leaves
+        let level0: Vec<Vec<u8>> = leaves
             .into_iter()
-            .map(|leaf| <KeccakHash<32> as Hasher<GoldilocksField>>::hash_or_noop(&[leaf]))
+            .map(|leaf| {
+                let inp = leaf.to_canonical_u64().to_le_bytes();
+                Self::keccak256(inp.as_slice())
+            })
             .collect();
 
         let mut levels = Vec::new();
@@ -46,19 +57,21 @@ impl MerkleTree {
         }
 
         // Final hash for root.
-        let last_hashes: Vec<BytesHash<32>> = levels.clone().last().unwrap().to_vec();
-        let root =
-            <KeccakHash<32> as Hasher<GoldilocksField>>::two_to_one(last_hashes[0], last_hashes[1]);
+        let last_hashes = levels.clone().last().unwrap().to_vec();
+        let root = {
+            let inp = [last_hashes[0].clone(), last_hashes[1].clone()].concat();
+            Self::keccak256(inp.as_slice())
+        };
         MerkleTree {
-            count_levels: count_levels,
+            count_levels,
             tree: levels.clone(),
-            root: root,
+            root,
         }
     }
 
     // Returns count_levels elements that together with the leaf show that a leaf is part of this Merkle Tree, given the root
     // starts at the element at the lowest level and goes up
-    pub fn get_merkle_proof(self, leaf_index: usize) -> Vec<BytesHash<32>> {
+    pub fn get_merkle_proof(self, leaf_index: usize) -> Vec<Vec<u8>> {
         assert!(leaf_index < self.tree[0].len());
 
         let mut proof_hashes = Vec::new();
@@ -66,11 +79,11 @@ impl MerkleTree {
 
         // Grab the correct hash per level
         for i in 0..(self.count_levels) {
-            let level_i: &Vec<BytesHash<32>> = &self.tree[i];
+            let level_i = &self.tree[i];
             let selected_hash = if updated_index.is_odd() {
-                level_i[updated_index - 1]
+                level_i[updated_index - 1].clone()
             } else {
-                level_i[updated_index + 1]
+                level_i[updated_index + 1].clone()
             };
             proof_hashes.push(selected_hash);
             updated_index = updated_index / 2;

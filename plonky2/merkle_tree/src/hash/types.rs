@@ -5,6 +5,7 @@ use plonky2::hash::hash_types::RichField;
 use plonky2::iop::target::BoolTarget;
 use plonky2::iop::witness::Witness;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
+use serde::{Serialize, Deserialize};
 
 use crate::biguint::{BigUintTarget, CircuitBuilderBiguint, WitnessBigUint};
 use crate::u32::arithmetic_u32::{CircuitBuilderU32, U32Target};
@@ -19,7 +20,7 @@ pub struct HashTarget {
     pub blocks: Vec<BoolTarget>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HashInputTarget {
     pub input: BigUintTarget,
     pub input_bits: usize,

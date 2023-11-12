@@ -35,9 +35,9 @@ touch $ECDSA_LOG
 echo "$(jq --arg tmp $(echo "scale=6; $(cat "$ECDSA_LOG" | grep "Maximum resident set size" | tr -d -c 0-9)/1024" | bc) '.+={"MemoryConsumption": $tmp }' "$ECDSA_OUTPUT")" > "$ECDSA_OUTPUT"
 
 cd $MERKLE_DIR
-cargo test build_merkle -- --nocapture
+"$MERKLE_DIR"/target/release/standard build
 touch $MERKLE_LOG
-{ RUST_LOG=debug /usr/bin/time -v cargo test test_merkle -- --nocapture; } 2> "$MERKLE_LOG"
+{ RUST_LOG=debug /usr/bin/time -v "$MERKLE_DIR"/target/release/standard; } 2> "$MERKLE_LOG"
 echo "$(jq --arg tmp $(echo "scale=6; $(cat "$MERKLE_LOG" | grep "Maximum resident set size" | tr -d -c 0-9)/1024" | bc) '.+={"MemoryConsumption": $tmp }' "$MERKLE_OUTPUT")" > "$MERKLE_OUTPUT"
 
 cd $ML_DIR

@@ -25,6 +25,8 @@ pub trait CircuitBuilderU32<F: RichField + Extendable<D>, const D: usize> {
 
     fn add_virtual_u32_targets(&mut self, n: usize) -> Vec<U32Target>;
 
+    fn register_u32_public_input(&mut self, t: U32Target);
+
     /// Returns a U32Target for the value `c`, which is assumed to be at most 32 bits.
     fn constant_u32(&mut self, c: u32) -> U32Target;
 
@@ -77,6 +79,10 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilderU32<F, D>
             .into_iter()
             .map(U32Target)
             .collect()
+    }
+
+    fn register_u32_public_input(&mut self, t: U32Target) {
+        self.register_public_input(t.0);
     }
 
     /// Returns a U32Target for the value `c`, which is assumed to be at most 32 bits.

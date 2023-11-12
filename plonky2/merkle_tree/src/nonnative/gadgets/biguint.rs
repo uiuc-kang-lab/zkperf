@@ -1,5 +1,6 @@
 use alloc::vec;
 use alloc::vec::Vec;
+use serde::{Serialize, Deserialize};
 use core::marker::PhantomData;
 use plonky2::plonk::circuit_data::CommonCircuitData;
 
@@ -17,7 +18,7 @@ use crate::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
 use crate::u32::gadgets::multiple_comparison::list_le_u32_circuit;
 use crate::u32::witness::{GeneratedValuesU32, WitnessU32};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BigUintTarget {
     pub limbs: Vec<U32Target>,
 }

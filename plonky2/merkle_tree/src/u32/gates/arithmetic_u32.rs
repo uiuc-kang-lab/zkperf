@@ -351,7 +351,7 @@ impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D>
 }
 
 #[derive(Clone, Debug)]
-struct U32ArithmeticGenerator<F: RichField + Extendable<D>, const D: usize> {
+pub struct U32ArithmeticGenerator<F: RichField + Extendable<D>, const D: usize> {
     gate: U32ArithmeticGate<F, D>,
     row: usize,
     i: usize,

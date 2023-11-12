@@ -180,14 +180,19 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilderHashKeccak<F, D
 #[cfg(test)]
 mod tests {
     use hex;
-    use plonky2::iop::witness::PartialWitness;
+    use num::BigUint;
+    use plonky2::iop::generator::generate_partial_witness;
+    use plonky2::iop::witness::{PartialWitness, Witness};
     use plonky2::plonk::circuit_builder::CircuitBuilder;
     use plonky2::plonk::circuit_data::CircuitConfig;
     use plonky2::plonk::config::{GenericConfig, KeccakGoldilocksConfig, PoseidonGoldilocksConfig};
+    use plonky2_field::types::PrimeField;
     use sha3::{Digest, Keccak256};
 
+    use crate::biguint::CircuitBuilderBiguint;
     use crate::hash::keccak256::{CircuitBuilderHashKeccak, WitnessHashKeccak, KECCAK256_R};
     use crate::hash::CircuitBuilderHash;
+    use crate::u32::arithmetic_u32::CircuitBuilderU32;
 
     #[test]
     fn test_keccak256_short() {
