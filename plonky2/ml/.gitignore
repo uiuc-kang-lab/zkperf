@@ -26,3 +26,7 @@ params_kzg
 params_ipa
 testing/data
 *.diff
+
+*_data
+*_targets
+*_log
