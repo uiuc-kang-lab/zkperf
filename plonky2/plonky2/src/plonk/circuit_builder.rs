@@ -103,7 +103,7 @@ pub struct CircuitBuilder<F: RichField + Extendable<D>, const D: usize> {
     /// The next available index for a `VirtualTarget`.
     virtual_target_index: usize,
 
-    copy_constraints: Vec<CopyConstraint>,
+    pub copy_constraints: Vec<CopyConstraint>,
 
     /// A tree of named scopes, used for debugging.
     context_log: ContextTree,
