@@ -11,11 +11,15 @@ use std::{fs::File, io::Write, time::Instant};
 
 use jemallocator::Jemalloc;
 use num::BigUint;
-use plonky2::{plonk::{
-    circuit_builder::CircuitBuilder,
-    circuit_data::{CircuitConfig, CircuitData},
-    config::{GenericConfig, KeccakGoldilocksConfig}, prover::prove,
-}, util::timing::TimingTree};
+use plonky2::{
+    plonk::{
+        circuit_builder::CircuitBuilder,
+        circuit_data::{CircuitConfig, CircuitData},
+        config::{GenericConfig, KeccakGoldilocksConfig},
+        prover::prove,
+    },
+    util::timing::TimingTree,
+};
 
 use plonky2_crypto::{
     biguint::{BigUintTarget, CircuitBuilderBiguint},
@@ -144,25 +148,25 @@ use rand::Rng;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-pub fn connect_two(
+fn connect_two(
     builder: &mut CircuitBuilder<GoldilocksField, 2>,
     hash_target: &HashInputTarget,
     inp1: &HashOutputTarget,
     inp2: &HashOutputTarget,
+    one: &BigUintTarget,
+    last: &BigUintTarget,
+    zero: &BigUintTarget,
 ) {
     builder.connect_hash_input(&hash_target, &inp1, 0);
     builder.connect_hash_input(&hash_target, &inp2, 8);
 
     // make compatible with sha3::Keccak256
-    let one = builder.constant_biguint(&BigUint::from(1u32));
     builder.connect_hash_input(&hash_target, &one, 16);
-    let last = builder.constant_biguint(&BigUint::from(2147483648u32));
     builder.connect_hash_input(&hash_target, &last, 33);
-    let zero = builder.hash_zero(16);
     builder.connect_hash_input(&hash_target, &zero, 17);
 }
 
-pub fn verify_merkle_proof_circuit(
+fn verify_merkle_proof_circuit(
     leaf_index: usize,
     nr_layers: usize,
 ) -> (
@@ -187,12 +191,19 @@ pub fn verify_merkle_proof_circuit(
 
     let mut next_hash_inp = builder.add_virtual_hash_input_target(1, KECCAK256_R);
 
+    let one = builder.constant_biguint(&BigUint::from(1u32));
+    let last = builder.constant_biguint(&BigUint::from(2147483648u32));
+    let zero = builder.hash_zero(16);
+
     if leaf_index % 2 == 0 {
         connect_two(
             &mut builder,
             &next_hash_inp,
             &leaf_to_prove,
             &merkle_proof_elm,
+            &one,
+            &last,
+            &zero,
         );
     } else {
         connect_two(
@@ -200,6 +211,9 @@ pub fn verify_merkle_proof_circuit(
             &next_hash_inp,
             &merkle_proof_elm,
             &leaf_to_prove,
+            &one,
+            &last,
+            &zero,
         );
     }
     targets.push(leaf_to_prove);
@@ -214,9 +228,25 @@ pub fn verify_merkle_proof_circuit(
 
         next_hash_inp = builder.add_virtual_hash_input_target(1, KECCAK256_R);
         if current_layer_index % 2 == 0 {
-            connect_two(&mut builder, &next_hash_inp, &next_hash, &merkle_proof_elm);
+            connect_two(
+                &mut builder,
+                &next_hash_inp,
+                &next_hash,
+                &merkle_proof_elm,
+                &one,
+                &last,
+                &zero,
+            );
         } else {
-            connect_two(&mut builder, &next_hash_inp, &merkle_proof_elm, &next_hash);
+            connect_two(
+                &mut builder,
+                &next_hash_inp,
+                &merkle_proof_elm,
+                &next_hash,
+                &one,
+                &last,
+                &zero,
+            );
         }
         targets.push(merkle_proof_elm);
         next_hash = builder.hash_keccak256(&next_hash_inp);
@@ -293,7 +323,13 @@ fn main() {
 
     println!("proving circuit");
     let mut timing = TimingTree::new("prove", Level::Info);
-    let proof = prove::<F, C, D>(&circuit_data.prover_only, &circuit_data.common, pw, &mut timing).unwrap();
+    let proof = prove::<F, C, D>(
+        &circuit_data.prover_only,
+        &circuit_data.common,
+        pw,
+        &mut timing,
+    )
+    .unwrap();
     timing.pop();
     timing.print();
     let proof_duration = timing.duration();
