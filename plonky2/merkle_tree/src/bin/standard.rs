@@ -304,7 +304,8 @@ fn get_tree(nr_leaves: u64) -> MerkleTree {
 
 fn main() {
     env_logger::init();
-    let x = std::env::args().nth(1).expect("cols");
+    let outp_json = std::env::args().nth(1).expect("output json file path");
+    let x = std::env::args().nth(2).expect("cols");
     let cols = x.parse::<usize>().unwrap();
 
     if cols < 25 {
@@ -373,6 +374,6 @@ fn main() {
 
     let json_string = serde_json::to_string(&results).unwrap();
 
-    let mut file = File::create("merkle.json").unwrap();
+    let mut file = File::create(outp_json).unwrap();
     let _ = file.write_all(json_string.as_bytes());
 }
