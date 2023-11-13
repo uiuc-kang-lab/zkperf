@@ -53,24 +53,24 @@ echo "$(jq --arg tmp $(echo "scale=6; $(cat "$MNIST_LOG" | grep "Maximum residen
 echo "$(jq '. += {"Circuit": "MNIST" }' "$MNIST_OUTPUT")" > "$MNIST_OUTPUT"
 
 touch $DLRM_LOG
-"$ML_DIR"/target/release/time_circuit dlrm "$ML_DIR"/examples/dlrm/model.msgpack "$ML_DIR"/examples/dlrm/inp.msgpack build "$DLRM_OUTPUT" 120
+"$ML_DIR"/target/release/time_circuit dlrm "$ML_DIR"/examples/dlrm/model.msgpack "$ML_DIR"/examples/dlrm/inp.msgpack build "$DLRM_OUTPUT" 110
 { RUST_LOG=debug /usr/bin/time -v "$ML_DIR"/target/release/time_circuit dlrm "$ML_DIR"/examples/dlrm/model.msgpack "$ML_DIR"/examples/dlrm/inp.msgpack prove "$DLRM_OUTPUT"; } 2> $DLRM_LOG
 echo "$(jq --arg tmp $(echo "scale=6; $(cat "$DLRM_LOG" | grep "Maximum resident set size" | tr -d -c 0-9)/1024" | bc) '.+={"MemoryConsumption": $tmp }' "$DLRM_OUTPUT")" > "$DLRM_OUTPUT"
 echo "$(jq '. += {"Circuit": "DLRM" }' "$DLRM_OUTPUT")" > "$DLRM_OUTPUT"
 
 # get breakdowns
-# python3 "$SCRIPT_DIR"/scripts/breakdown.py ecdsa $ECDSA_LOG $ECDSA_BREAK_JSON $ECDSA_BREAK_CSV
-# python3 "$SCRIPT_DIR"/scripts/breakdown.py merkle $MERKLE_LOG $MERKLE_BREAK_JSON $MERKLE_BREAK_CSV
-# python3 "$SCRIPT_DIR"/scripts/breakdown.py mnist $MNIST_LOG $MNIST_BREAK_JSON $MNIST_BREAK_CSV
-# python3 "$SCRIPT_DIR"/scripts/breakdown.py dlrm $DLRM_LOG $DLRM_BREAK_JSON $DLRM_BREAK_CSV
+python3 "$SCRIPT_DIR"/scripts/breakdown.py ecdsa $ECDSA_LOG $ECDSA_BREAK_JSON $ECDSA_BREAK_CSV
+python3 "$SCRIPT_DIR"/scripts/breakdown.py merkle $MERKLE_LOG $MERKLE_BREAK_JSON $MERKLE_BREAK_CSV
+python3 "$SCRIPT_DIR"/scripts/breakdown.py mnist $MNIST_LOG $MNIST_BREAK_JSON $MNIST_BREAK_CSV
+python3 "$SCRIPT_DIR"/scripts/breakdown.py dlrm $DLRM_LOG $DLRM_BREAK_JSON $DLRM_BREAK_CSV
 
-# declare -a json_bds=("$ECDSA_BREAK_JSON" "$MERKLE_BREAK_JSON" "$MNIST_BREAK_JSON" "$DLRM_BREAK_JSON")
-# collected_outp=$(jq -n '[]')
-# for outp in "${json_bds[@]}"; do
-#     outp_list=$(jq -n --argjson dict "$(cat $outp)" '[ $dict ]')
-#     collected_outp=$(jq -n --argjson outp_list "$outp_list" --argjson collected_outp "$collected_outp" '$outp_list + $collected_outp')
-# done
+declare -a json_bds=("$ECDSA_BREAK_JSON" "$MERKLE_BREAK_JSON" "$MNIST_BREAK_JSON" "$DLRM_BREAK_JSON")
+collected_outp=$(jq -n '[]')
+for outp in "${json_bds[@]}"; do
+    outp_list=$(jq -n --argjson dict "$(cat $outp)" '[ $dict ]')
+    collected_outp=$(jq -n --argjson outp_list "$outp_list" --argjson collected_outp "$collected_outp" '$outp_list + $collected_outp')
+done
 
-# echo "$collected_outp" > "$SCRIPT_DIR"/breakdowns.json
-# rm -r "$SCRIPT_DIR"/breakdowns.csv
-# cat "$ECDSA_BREAK_CSV" "$MERKLE_BREAK_CSV" "$MNIST_BREAK_CSV" "$DLRM_BREAK_CSV" >> "$SCRIPT_DIR"/breakdowns.csv
+echo "$collected_outp" > "$SCRIPT_DIR"/breakdowns.json
+rm -r "$SCRIPT_DIR"/breakdowns.csv
+cat "$ECDSA_BREAK_CSV" "$MERKLE_BREAK_CSV" "$MNIST_BREAK_CSV" "$DLRM_BREAK_CSV" >> "$SCRIPT_DIR"/breakdowns.csv
