@@ -4,6 +4,7 @@ use crate::maingate;
 use crate::ecdsa::{AssignedEcdsaSig, AssignedPublicKey, EcdsaChip};
 use crate::curves::bn256::{Fr as BnScalar, Bn256, G1Affine};
 use crate::curves::secp256k1::Secp256k1Affine as Secp256k1;
+use ark_std::{end_timer, start_timer};
 use ecc::halo2::halo2curves::secp256k1::Fp;
 use ecc::halo2::halo2curves::secp256k1::Fq;
 use ecc::halo2::plonk::ProvingKey;
@@ -232,7 +233,7 @@ pub fn test_ecdsa_verifier(step: String) {
             // Generate a key pair
             let sk = <C as CurveAffine>::ScalarExt::random(rng.clone());
             let public_key = (g * sk).to_affine();
-            public_key.x;
+
             // Generate a valid signature
             // Suppose `m_hash` is the message hash
             let msg_hash = <C as CurveAffine>::ScalarExt::random(rng.clone());
@@ -374,5 +375,106 @@ pub fn test_ecdsa_verifier(step: String) {
     }
 
     run(step);
+    
+}
+
+pub fn breakdown_ecdsa() {
+    fn mod_n<C: CurveAffine>(x: C::Base) -> C::Scalar {
+        let x_big = fe_to_big(x);
+        big_to_fe(x_big)
+    }
+
+    type C = Secp256k1;
+    type N = BnScalar;
+
+    // let timer = start_timer!(|| "Setup");
+    let rng = rand::thread_rng();
+    let g = C::generator();
+    
+
+    // Generate a key pair
+    let sk = <C as CurveAffine>::ScalarExt::random(rng.clone());
+    let public_key = (g * sk).to_affine();
+
+    // Generate a valid signature
+    // Suppose `m_hash` is the message hash
+    let msg_hash = <C as CurveAffine>::ScalarExt::random(rng.clone());
+
+    // Draw arandomness
+    let k = <C as CurveAffine>::ScalarExt::random(rng.clone());
+    let k_inv = k.invert().unwrap();
+
+    // Calculate `r`
+    let r_point = (g * k).to_affine().coordinates().unwrap();
+    let x = r_point.x();
+    let r = mod_n::<C>(*x);
+
+    // Calculate `s`
+    let s = k_inv * (msg_hash + (r * sk));
+
+    let aux_generator = <Secp256k1 as CurveAffine>::CurveExt::random(rng.clone()).to_affine();
+
+    let circuit = TestCircuitEcdsaVerify::<C, N> {
+        public_key: Value::known(public_key),
+        signature: Value::known((r, s)),
+        msg_hash: Value::known(msg_hash),
+        aux_generator,
+        window_size: 4,
+        ..Default::default()
+    };
+    
+    let degree = 18 as u32;
+    let params = get_kzg_params("./params_kzg", degree);
+    // end_timer!(timer);
+
+    // let timer = start_timer!(|| "Preprocess");
+    let vk_circuit = circuit.clone();
+    let vk = keygen_vk(&params, &vk_circuit).unwrap();
+    drop(vk_circuit);
+
+    let pk_circuit = circuit.clone();
+    let pk = keygen_pk(&params, vk.clone(), &pk_circuit).unwrap();
+    drop(pk_circuit);
+
+    let proof_circuit = circuit.clone();
+    let _prover = MockProver::run(degree, &proof_circuit, vec![vec![]]).unwrap();
+    // end_timer!(timer);
+
+    // let timer = start_timer!(|| "Prove");
+    let mut transcript = Blake2bWrite::<_, G1Affine, Challenge255<_>>::init(vec![]);
+
+    create_proof::<
+        KZGCommitmentScheme<Bn256>,
+        ProverSHPLONK<'_, Bn256>,
+        Challenge255<G1Affine>,
+        _,
+        Blake2bWrite<Vec<u8>, G1Affine, Challenge255<G1Affine>>,
+        TestCircuitEcdsaVerify<C, N>,
+    >(
+        &params,
+        &pk,
+        &[circuit],
+        &[&[&[]]],
+        rng.clone(),
+        &mut transcript,
+    )
+    .unwrap();
+    let proof = transcript.finalize();
+    // end_timer!(timer);
+
+    // let timer = start_timer!(|| "Verify");
+    let strategy = SingleStrategy::new(&params);
+    let mut transcript_read = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
+
+    assert!(
+    verify_proof::<
+        KZGCommitmentScheme<Bn256>,
+        VerifierSHPLONK<'_, Bn256>,
+        Challenge255<G1Affine>,
+        Blake2bRead<&[u8], G1Affine, Challenge255<G1Affine>>,
+        SingleStrategy<'_, Bn256>,
+    >(&params, &vk, strategy, &[&[&[]]], &mut transcript_read)
+    .is_ok());
+    // end_timer!(timer);
     
 }

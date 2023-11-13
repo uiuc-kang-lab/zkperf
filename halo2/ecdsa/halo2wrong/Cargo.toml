@@ -8,7 +8,7 @@ edition = "2021"
 num-bigint = { version = "0.4", features = ["rand"] }
 num-integer = "0.1"
 num-traits = "0.2"
-halo2 = { package = "halo2_proofs", git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v2023_04_20" }
+halo2 = { git="https://github.com/span14/halo2", package="halo2_proofs", branch="benchmark", features = ["zkml"]}
 
 [dev-dependencies]
 rand = "0.8"
@@ -17,3 +17,5 @@ rand_core = { version = "0.6", default-features = false }
 [features]
 default = []
 circuit-params = ["halo2/circuit-params"]
+print-trace=["halo2/print-trace"]
+stats=["halo2/stats"]
