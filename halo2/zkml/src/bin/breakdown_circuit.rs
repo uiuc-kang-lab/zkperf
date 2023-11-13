@@ -30,12 +30,12 @@ fn main() {
     
     let rng = rand::thread_rng();
   
-    let timer = start_timer!(|| "Setup");
+    // let timer = start_timer!(|| "Setup");
     let degree = circuit.k as u32;
     let params = get_kzg_params("./params_kzg", degree);
-    end_timer!(timer);
+    // end_timer!(timer);
 
-    let timer = start_timer!(|| "Preprocess");
+    // let timer = start_timer!(|| "Preprocess");
     let vk_circuit = circuit.clone();
     let vk = keygen_vk(&params, &vk_circuit).unwrap();
     drop(vk_circuit);
@@ -43,13 +43,13 @@ fn main() {
     let pk_circuit = circuit.clone();
     let pk = keygen_pk(&params, vk, &pk_circuit).unwrap();
     drop(pk_circuit);
-    end_timer!(timer);
+    // end_timer!(timer);
 
     let proof_circuit = circuit.clone();
     let _prover = MockProver::run(degree, &proof_circuit, vec![vec![]]).unwrap();
     let public_vals = get_public_values();
   
-    let timer = start_timer!(|| "Prove");
+    // let timer = start_timer!(|| "Prove");
     let mut transcript = Blake2bWrite::<_, G1Affine, Challenge255<_>>::init(vec![]);
     create_proof::<
       KZGCommitmentScheme<Bn256>,
@@ -68,9 +68,9 @@ fn main() {
     )
     .unwrap();
     let proof = transcript.finalize();
-    end_timer!(timer);
+    // end_timer!(timer);
 
-    let timer = start_timer!(|| "Verify");
+    // let timer = start_timer!(|| "Verify");
     let strategy = SingleStrategy::new(&params);
     let transcript_read = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
     verify_kzg(
@@ -80,6 +80,6 @@ fn main() {
       &public_vals,
       transcript_read,
     );
-    end_timer!(timer);
+    // end_timer!(timer);
 
 }
