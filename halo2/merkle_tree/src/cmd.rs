@@ -9,6 +9,7 @@ pub enum SnarkCmd {
     /// Generate new proving & verifying keys
     Prove,
     Verify,
+    Full,
 }
 
 

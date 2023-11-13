@@ -20,29 +20,32 @@ use axiom_eth::{
     },
     EthChip, EthCircuitBuilder, ETH_LOOKUP_BITS,
 };
+use bincode;
 use halo2_base::{
     gates::builder::{CircuitBuilderStage, GateThreadBuilder},
     halo2_proofs::{
         dev::MockProver,
         halo2curves::bn256::{Bn256, Fr, G1Affine},
-        plonk::{verify_proof, Circuit, VerifyingKey, ProvingKey},
+        plonk::{create_proof, verify_proof, Circuit, VerifyingKey, ProvingKey, keygen_pk, keygen_vk},
         poly::{
             commitment::{Params, ParamsProver},
             kzg::{
                 commitment::{KZGCommitmentScheme, ParamsKZG},
-                multiopen::VerifierSHPLONK,
+                multiopen::{ProverSHPLONK, VerifierSHPLONK},
                 strategy::SingleStrategy,
             },
         },
+        transcript::{
+            Blake2bRead, Blake2bWrite, Challenge255, TranscriptReadBuffer, TranscriptWriterBuffer,
+        },
         SerdeFormat,
     },
-    // utils::fs::gen_srs,
     safe_types::RangeChip,
     AssignedValue, Context,
 };
-
-
+use itertools::Itertools;
 use serde::de::DeserializeOwned;
+use serde_json; 
 use snark_verifier_sdk::{
     halo2::{gen_snark_shplonk, read_snark, PoseidonTranscript},
     CircuitExt, NativeLoader, read_pk
@@ -174,6 +177,7 @@ where
 }
 
 pub fn run_cli<P: PreCircuit + Clone>(precircuit: P, cli: Cli) {
+
     let name = cli.name;
     let k = cli.degree;
 
@@ -183,126 +187,130 @@ pub fn run_cli<P: PreCircuit + Clone>(precircuit: P, cli: Cli) {
     fs::create_dir_all(&data_path).unwrap();
 
     let params = get_kzg_params(k);
-    // println!("Universal trusted setup (unsafe!) available at: params/kzg_bn254_{k}.srs");
     match cli.command {
         SnarkCmd::Mock => {
             let circuit = precircuit.create_circuit(CircuitBuilderStage::Mock, None, &params);
             MockProver::run(k, &circuit, circuit.instances()).unwrap().assert_satisfied();
         }
         SnarkCmd::Keygen => {
-            let pk_path = data_path.join(PathBuf::from(format!("{name}.pk")));
-            if pk_path.exists() {
-                fs::remove_file(&pk_path).unwrap();
-            }
-            let pinning_path = config_path.join(PathBuf::from(format!("{name}.json")));
-            let pk = precircuit.create_pk(&params, &pk_path, pinning_path);
-            // println!("Proving key written to: {pk_path:?}");
 
+            let pk_path = data_path.join(PathBuf::from(format!("{name}.pk")));
             let vk_path = data_path.join(PathBuf::from(format!("{name}.vk")));
-            let f = File::create(&vk_path).unwrap();
-            let mut writer = BufWriter::new(f);
-            pk.get_vk()
-                .write(&mut writer, SerdeFormat::RawBytes)
-                .expect("writing vkey should not fail");
-            // println!("Verifying key written to: {vk_path:?}");
+            let pinning_path = config_path.join(PathBuf::from(format!("{name}.json")));
+            let key_gen_circuit = precircuit.clone().create_circuit(CircuitBuilderStage::Keygen, None, &params);
+            let vk = keygen_vk(&params, &key_gen_circuit).unwrap();
+            let pk = keygen_pk(&params, vk.clone(), &key_gen_circuit).unwrap();
+
+            key_gen_circuit.write_pinning(pinning_path.clone());
+            serialize(&vk.to_bytes(SerdeFormat::RawBytes), &vk_path);
+            serialize(&pk.to_bytes(SerdeFormat::RawBytes), &pk_path);
+
         }
         SnarkCmd::Prove => {
+            let rng = rand::thread_rng();
+            let pk_path = data_path.join(PathBuf::from(format!("{name}.pk")));
             let pinning_path = config_path.join(PathBuf::from(format!("{name}.json")));
+            let proof_path = data_path.join(PathBuf::from(format!("{name}.proof")));
+            let instances_path = data_path.join(PathBuf::from(format!("{name}.instances")));
             let pinning = P::Pinning::from_path(pinning_path);
             pinning.set_var();
+            
             let circuit =
                 precircuit.create_circuit(CircuitBuilderStage::Prover, Some(pinning), &params);
-            let pk_path = data_path.join(PathBuf::from(format!("{name}.pk")));
-            let pk = custom_read_pk(pk_path, &circuit);
+            let pk = custom_read_pk(&pk_path, &circuit);
 
-            let snark_path = data_path.join(PathBuf::from(format!("{name}.snark")));
-            if snark_path.exists() {
-                fs::remove_file(&snark_path).unwrap();
-            }
-            // let start = Instant::now();
-            let snark = gen_snark_shplonk(&params, &pk, circuit, Some(&snark_path));
-            let proof_path = data_path.join(PathBuf::from(format!("{name}.proof")));
-            serialize(&snark.proof, &proof_path);
-            // let duration = start.elapsed();
-            // println!("Proof Generation Time: {:?}", duration);
-            // println!("Proof Size: {}", snark.proof.len());
-            // println!("Snark written to: {snark_path:?}");
+            let instances = circuit.instances();
+            bincode::serialize_into(File::create(instances_path).unwrap(), &instances).unwrap();
+            
+            let instances = instances.iter().map(Vec::as_slice).collect_vec();
+
+            let mut transcript = Blake2bWrite::<_, G1Affine, Challenge255<_>>::init(vec![]);
+            create_proof::<
+                KZGCommitmentScheme<Bn256>,
+                ProverSHPLONK<'_, Bn256>,
+                Challenge255<G1Affine>,
+                _,
+                Blake2bWrite<Vec<u8>, G1Affine, Challenge255<G1Affine>>,
+                _,
+            >(
+                &params,
+                &pk,
+                &[circuit],
+                &[&instances],
+                rng,
+                &mut transcript,
+            )
+            .unwrap();
+            let proof = transcript.finalize();
+            serialize(&proof, &proof_path);
         }
         SnarkCmd::Verify => {
             let vk_path = data_path.join(PathBuf::from(format!("{name}.vk")));
+            let proof_path = data_path.join(PathBuf::from(format!("{name}.proof")));
+            let instances_path = data_path.join(PathBuf::from(format!("{name}.instances")));
             let circuit = precircuit.create_circuit(CircuitBuilderStage::Keygen, None, &params);
             let vk = custom_read_vk(vk_path, &circuit);
-            let snark_path = data_path.join(PathBuf::from(format!("{name}.snark")));
-            let snark = read_snark(&snark_path)
-                .unwrap_or_else(|e| panic!("Snark not found at {snark_path:?}. {e:?}"));
+            let proof = std::fs::read(proof_path).unwrap();
 
-            let verifier_params = params.verifier_params();
             let strategy = SingleStrategy::new(&params);
-            let mut transcript =
-                PoseidonTranscript::<NativeLoader, &[u8]>::new::<0>(&snark.proof[..]);
-            let instance = &snark.instances[0][..];
-            // let start = Instant::now();
+            let mut transcript = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
+
+            let instances: Vec<Vec<Fr>> = bincode::deserialize_from(File::open(instances_path).unwrap()).unwrap();
+            let instances = instances.iter().map(Vec::as_slice).collect_vec();
             verify_proof::<
                 KZGCommitmentScheme<Bn256>,
                 VerifierSHPLONK<'_, Bn256>,
                 _,
                 _,
                 SingleStrategy<'_, Bn256>,
-            >(verifier_params, &vk, strategy, &[&[instance]], &mut transcript)
+            >(&params, &vk, strategy, &[&instances], &mut transcript)
             .unwrap();
-            // let duration = start.elapsed();
-            // println!("Verification Time: {:?}", duration);
-            // println!("Snark verified successfully!");
         }
-        // SnarkCmd::Full => {
-        //     let pk_path = data_path.join(PathBuf::from(format!("{name}.pk")));
-        //     if pk_path.exists() {
-        //         fs::remove_file(&pk_path).unwrap();
-        //     }
-        //     let pinning_path = config_path.join(PathBuf::from(format!("{name}.json")));
-        //     let pk = precircuit.clone().create_pk(&params, &pk_path, pinning_path.clone());
-        //     println!("Proving key written to: {pk_path:?}");
+        SnarkCmd::Full => {
+            let rng = rand::thread_rng();
+            let pinning_path = config_path.join(PathBuf::from(format!("{name}.json")));
+            let key_gen_circuit = precircuit.clone().create_circuit(CircuitBuilderStage::Keygen, None, &params);
+            let vk = keygen_vk(&params, &key_gen_circuit).unwrap();
+            let pk = keygen_pk(&params, vk.clone(), &key_gen_circuit).unwrap();
+            key_gen_circuit.write_pinning(pinning_path.clone());
+            let pinning = P::Pinning::from_path(pinning_path);
+            pinning.set_var();
+            let circuit =
+            precircuit.create_circuit(CircuitBuilderStage::Prover, Some(pinning), &params);
+            let instances = circuit.instances();
+            let instances = instances.iter().map(Vec::as_slice).collect_vec();
 
-        //     let vk_path = data_path.join(PathBuf::from(format!("{name}.vk")));
-        //     let f = File::create(&vk_path).unwrap();
-        //     let mut writer = BufWriter::new(f);
-        //     pk.get_vk()
-        //         .write(&mut writer, SerdeFormat::RawBytes)
-        //         .expect("writing vkey should not fail");
-        //     println!("Verifying key written to: {vk_path:?}");
+            let mut transcript = Blake2bWrite::<_, G1Affine, Challenge255<_>>::init(vec![]);
+            create_proof::<
+              KZGCommitmentScheme<Bn256>,
+              ProverSHPLONK<'_, Bn256>,
+              Challenge255<G1Affine>,
+              _,
+              Blake2bWrite<Vec<u8>, G1Affine, Challenge255<G1Affine>>,
+              _,
+            >(
+              &params,
+              &pk,
+              &[circuit],
+              &[&instances],
+              rng,
+              &mut transcript,
+            )
+            .unwrap();
+            let proof = transcript.finalize();
 
-        //     let pinning = P::Pinning::from_path(pinning_path);
-        //     pinning.set_var();
+            let strategy = SingleStrategy::new(&params);
+            let mut transcript = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
 
-        //     let circuit =
-        //         precircuit.create_circuit(CircuitBuilderStage::Prover, Some(pinning), &params);
-        //     let snark_path = data_path.join(PathBuf::from(format!("{name}.snark")));
-        //     if snark_path.exists() {
-        //         fs::remove_file(&snark_path).unwrap();
-        //     }
-
-        //     let vk = custom_read_vk(vk_path, &circuit);
-
-        //     gen_snark_shplonk(&params, &pk, circuit, Some(&snark_path));
-        //     println!("Proof written to: {snark_path:?}");
-            
-        //     let snark = read_snark(&snark_path)
-        //         .unwrap_or_else(|e| panic!("Snark not found at {snark_path:?}. {e:?}"));
-        //     let verifier_params = params.verifier_params();
-        //     let strategy = SingleStrategy::new(&params);
-        //     let mut transcript =
-        //         PoseidonTranscript::<NativeLoader, &[u8]>::new::<0>(&snark.proof[..]);
-        //     let instance = &snark.instances[0][..];
-        //     verify_proof::<
-        //         KZGCommitmentScheme<Bn256>,
-        //         VerifierSHPLONK<'_, Bn256>,
-        //         _,
-        //         _,
-        //         SingleStrategy<'_, Bn256>,
-        //     >(verifier_params, &vk, strategy, &[&[instance]], &mut transcript)
-        //     .unwrap();
-        //     println!("Proof verified successfully!");
-        // }
+            verify_proof::<
+                KZGCommitmentScheme<Bn256>,
+                VerifierSHPLONK<'_, Bn256>,
+                _,
+                _,
+                SingleStrategy<'_, Bn256>,
+            >(&params, &vk, strategy, &[&instances], &mut transcript)
+            .unwrap();
+        }
     }
 }
 
@@ -339,8 +347,11 @@ where
     C: Circuit<Fr>,
     P: AsRef<Path>,
 {
-    read_pk::<C>(fname.as_ref())
-        .unwrap_or_else(|e| panic!("Failed to open file: {:?}: {e:?}", fname.as_ref()))
+    ProvingKey::read::<_, C>(
+        &mut BufReader::new(File::open(&fname).unwrap()),
+        SerdeFormat::RawBytes,
+      )
+      .unwrap_or_else(|e| panic!("Failed to open file: {:?}: {e:?}", fname.as_ref()))
 }
 
 fn custom_read_vk<C, P>(fname: P, _: &C) -> VerifyingKey<G1Affine>
@@ -348,9 +359,10 @@ where
     C: Circuit<Fr>,
     P: AsRef<Path>,
 {
-    let f = File::open(&fname)
-        .unwrap_or_else(|e| panic!("Failed to open file: {:?}: {e:?}", fname.as_ref()));
-    let mut bufreader = BufReader::new(f);
-    VerifyingKey::read::<_, C>(&mut bufreader, SerdeFormat::RawBytes).expect("Could not read vkey")
+    VerifyingKey::read::<_, C>(
+        &mut BufReader::new(File::open(&fname).unwrap()),
+        SerdeFormat::RawBytes,
+      )
+      .unwrap_or_else(|e| panic!("Failed to open file: {:?}: {e:?}", fname.as_ref()))
 }
 
