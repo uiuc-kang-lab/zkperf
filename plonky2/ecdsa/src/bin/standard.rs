@@ -161,6 +161,13 @@ where
 
 fn main() {
     env_logger::init();
+    let x = std::env::args().nth(1).expect("cols");
+    let cols = x.parse::<usize>().unwrap();
+
+    if cols < 25 {
+        panic!("Invalid cols")
+    }
+
     const D: usize = 2;
     type C = KeccakGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
@@ -170,7 +177,7 @@ fn main() {
     let ecdsa_config = {
         CircuitConfig {
             zero_knowledge: true,
-            num_routed_wires: 25,
+            num_routed_wires: cols,
             ..CircuitConfig::standard_ecc_config()
         }
     };

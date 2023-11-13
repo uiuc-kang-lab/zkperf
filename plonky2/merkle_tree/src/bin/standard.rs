@@ -169,6 +169,7 @@ fn connect_two(
 fn verify_merkle_proof_circuit(
     leaf_index: usize,
     nr_layers: usize,
+    cols: usize,
 ) -> (
     CircuitData<GoldilocksField, KeccakGoldilocksConfig, 2>,
     Vec<HashOutputTarget>,
@@ -179,7 +180,11 @@ fn verify_merkle_proof_circuit(
 
     let mut targets: Vec<BigUintTarget> = Vec::new();
 
-    let config: CircuitConfig = CircuitConfig::standard_recursion_zk_config();
+    let config: CircuitConfig = CircuitConfig {
+        num_routed_wires: cols,
+        ..CircuitConfig::standard_recursion_zk_config()
+    };
+
     let mut builder: CircuitBuilder<plonky2::field::goldilocks_field::GoldilocksField, 2> =
         CircuitBuilder::<F, D>::new(config);
 
@@ -299,6 +304,13 @@ fn get_tree(nr_leaves: u64) -> MerkleTree {
 
 fn main() {
     env_logger::init();
+    let x = std::env::args().nth(1).expect("cols");
+    let cols = x.parse::<usize>().unwrap();
+
+    if cols < 25 {
+        panic!("Invalid cols")
+    }
+
     const D: usize = 2;
     type C = KeccakGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
@@ -308,7 +320,7 @@ fn main() {
     let merkle_proof_leaf0 = tree.clone().get_merkle_proof(0);
     println!("{:?}", merkle_proof_leaf0);
 
-    let (circuit_data, targets) = verify_merkle_proof_circuit(0, 10);
+    let (circuit_data, targets) = verify_merkle_proof_circuit(0, 10, cols);
 
     let mut pw = plonky2::iop::witness::PartialWitness::new();
     // non-public inputs to witness: leaf and elements of merkle proof
