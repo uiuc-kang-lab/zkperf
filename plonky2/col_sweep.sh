@@ -5,16 +5,14 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ECDSA_DIR=$SCRIPT_DIR/ecdsa
 MERKLE_DIR=$SCRIPT_DIR/merkle_tree
 ML_DIR=$SCRIPT_DIR/ml
-SWEEP_DIR=$SCRIPT_DIR/column_sweep
+SWEEP_DIR=$SCRIPT_DIR/logs/column_sweep
 
 cd $ECDSA_DIR
 cargo build --release
 cd ..
 
-declare -a cols=(25 40 60 80 100 120)
-# declare -a cols=(40 60 100 120)
-# declare -a cols=(25 80)
-mkdir -p column_sweep
+declare -a cols=(25 40 50 60 70 80 90 100 110 120 135)
+mkdir -p logs/column_sweep
 for col in "${cols[@]}"; do
     touch "$SWEEP_DIR"/"$col"_ecdsa_log
     #"$ECDSA_DIR"/target/release/standard build $col
