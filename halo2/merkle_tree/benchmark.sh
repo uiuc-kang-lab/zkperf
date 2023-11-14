@@ -9,6 +9,8 @@ if [ ! -f "$OUTPUT" ]; then
     echo "{}" > "$OUTPUT"
 fi
 
+cargo build --release
+
 echo "$(jq '. += {"Framework": "Halo2" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 echo "$(jq '. += {"Circuit": "Merkle Tree 1024" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 echo "$(jq '. += {"Backend": "Plonk" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"

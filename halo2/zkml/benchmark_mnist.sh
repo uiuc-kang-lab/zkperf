@@ -16,6 +16,8 @@ if [ ! -d "./params_kzg" ]; then
     mkdir -p "./params_kzg"
 fi
 
+cargo build --release
+
 echo "$(jq '. += {"Framework": "Halo2" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 echo "$(jq '. += {"Circuit": "MNIST" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 echo "$(jq '. += {"Backend": "Plonk" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
