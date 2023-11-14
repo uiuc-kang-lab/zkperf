@@ -41,7 +41,14 @@ if __name__ == "__main__":
             "total": 0,
         },
     }
-    phase_ops = {}
+    phase_ops = {
+        "prove": {
+
+        },
+        "verify": {
+
+        }
+    }
 
     process = ""
     phase = ""
@@ -53,7 +60,7 @@ if __name__ == "__main__":
             if line.strip() == "Start:   Prover":
                 parse_flag = True
                 process = "prove"
-            elif line.strip() == "Start:   Verify":
+            elif line.strip() == "Start:   Verifier":
                 parse_flag = True
                 process = "verify"
             elif parse_flag:
@@ -72,16 +79,16 @@ if __name__ == "__main__":
                         entire_ops[process].get("ifft") - \
                         entire_ops[process].get("msm") - \
                         entire_ops[process].get("pair", 0)
-                    phase_ops["Other"] = ti - \
-                        sum([val["total"] for _, val in phase_ops.items()])
-    
+                    phase_ops[process]["Other"] = ti - \
+                        sum([val["total"] for _, val in phase_ops[process].items()])
+
                     parse_flag = False 
                     process = ""
                 elif line.startswith("··End:     "):
                     temp = line.replace("··End:     ", "")
                     if temp.startswith("Phase"):
                         ti = get_time(temp)
-                        phase_breakdown = phase_ops.get(phase, {
+                        phase_breakdown = phase_ops[process].get(phase, {
                             "fft": 0,
                             "ifft": 0,
                             "msm": 0,
@@ -95,7 +102,7 @@ if __name__ == "__main__":
                             phase_breakdown.get("ifft") - \
                             phase_breakdown.get("msm") - \
                             phase_breakdown.get("pair", 0)
-                        phase_ops[phase] = phase_breakdown
+                        phase_ops[process][phase] = phase_breakdown
 
                     else:
                         ti = get_time(temp)
@@ -108,7 +115,7 @@ if __name__ == "__main__":
                     elems = temp.split(".")
                     op = elems[0].strip().split("-")[0]
                     entire_ops[process][op] += ti 
-                    phase_breakdown = phase_ops.get(phase, {
+                    phase_breakdown = phase_ops[process].get(phase, {
                         "fft": 0,
                         "ifft": 0,
                         "msm": 0,
@@ -117,8 +124,7 @@ if __name__ == "__main__":
                         "total": 0,
                     })
                     phase_breakdown[op] += ti
-                    phase_ops[phase] = phase_breakdown
-
+                    phase_ops[process][phase] = phase_breakdown
     with open(args.output, "w") as f:
         json.dump({
             "name": args.name,
