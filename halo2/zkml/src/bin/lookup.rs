@@ -148,8 +148,8 @@ fn time_kzg(k: usize, circuit: LookupCircuit<Fr>) {
 
 fn main() {
 
-    let queries = [16374, 32758, 65526];
-    let cols = [1000, 10000, 100000, 1000000, 10000000];
+    let cols = [16374, 32758, 65526];
+    let queries = [1000, 10000, 100000, 1000000, 10000000];
     // let queries = [16734];
     // let cols = [100000];
     

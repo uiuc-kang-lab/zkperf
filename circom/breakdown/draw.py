@@ -26,7 +26,7 @@ def plot_phases_log(data, name):
     pos = ax.get_position()
     ax.set_yscale("log")
     ax.set_position([pos.x0, pos.y0, pos.width * 0.5, pos.height])
-    ax.legend(loc='center right', bbox_to_anchor=(1.9, 0.5))
+    ax.legend(loc='center right', bbox_to_anchor=(1.65, 0.5))
     
     ax.set_xlabel('Benchmark Task')
     ax.set_ylabel('Time in log scale(ms)')
@@ -52,12 +52,12 @@ def plot_phases(data, name):
         bottom += time
     pos = ax.get_position()
     ax.set_position([pos.x0, pos.y0, pos.width * 0.5, pos.height])
-    ax.legend(loc='center right', bbox_to_anchor=(1.9, 0.5))
+    ax.legend(loc='center right', bbox_to_anchor=(1.65, 0.5))
     
     ax.set_xlabel('Benchmark Task')
     ax.set_ylabel('Time(ms)')
     ax.set_title('Circom {} Phases Breakdown'.format(name.capitalize()))
-    plt.savefig('circom_{}_phase_breakdown_log.png'.format(name))
+    plt.savefig('circom_{}_phase_breakdown.png'.format(name))
 
 
 def plot_ops_pie(data, name):
