@@ -74,6 +74,26 @@ def plot_ops_pie(data, name):
     ax.set_title('Average Circom {} Breakdown over Tasks'.format(name.capitalize()))
     plt.savefig('circom_{}_breakdown.png'.format(name))
 
+def plot_constraints_prover_time(data):
+    constraints = {
+        "ecdsa": 1401956,
+        "merkle": 1516810,
+        "dlrm": 2524226,
+        "mnist": 1965827
+    }
+    keys = list(constraints.keys())
+    runtime = dict([( item["name"],  sum([val for _,val in item["phase_time"].items() ]) ) for item in data])
+    x = [constraints[key] for key in keys]
+    y = [runtime[key] for key in keys]
+
+    fig, ax = plt.subplots()
+    ax.scatter(x, y, marker="x", color="red")
+    ax.set_xlabel("# of Constraints")
+    ax.set_ylabel("Proving Time(ms)")
+    ax.set_title("Comparison of Proving Time versus # of Constraints")
+    plt.savefig("constraints_prove_time.png")
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument("dir")
 
@@ -93,4 +113,4 @@ if __name__ == "__main__":
     plot_phases_log(prover_breakdowns, "prove")
     plot_phases(prover_breakdowns, "prove")
     plot_ops_pie(prover_breakdowns, "prove")
-    
+    plot_constraints_prover_time(prover_breakdowns)

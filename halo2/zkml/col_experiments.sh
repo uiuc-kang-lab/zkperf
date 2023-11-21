@@ -13,8 +13,8 @@ fi
 
 cargo build --release
 
-NUM_COLS=120
-K=15
+NUM_COLS=48
+K=16
 
 for i in $(seq $NUM_COLS -6 6)
 do
