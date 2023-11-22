@@ -1,5 +1,6 @@
 use alloc::format;
 use alloc::vec::Vec;
+use log::debug;
 
 use itertools::Itertools;
 use plonky2_field::types::Field;
@@ -64,7 +65,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
     ) -> Self {
         let coeffs = timed!(
             timing,
-            "IFFT",
+            &format!("IFFT {} {}", values[0].len(), values.len()),
             values.into_par_iter().map(|v| v.ifft()).collect::<Vec<_>>()
         );
 
@@ -90,12 +91,13 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
         let degree = polynomials[0].len();
         let lde_values = timed!(
             timing,
-            "FFT + blinding",
+            &format!("FFT + blinding {} {}", polynomials[0].len(), polynomials.len()),
             Self::lde_values(&polynomials, rate_bits, blinding, fft_root_table)
         );
 
         let mut leaves = timed!(timing, "transpose LDEs", transpose(&lde_values));
         reverse_index_bits_in_place(&mut leaves);
+
         let merkle_tree = timed!(
             timing,
             "build Merkle tree",

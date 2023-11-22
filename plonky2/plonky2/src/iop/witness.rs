@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 
 use hashbrown::HashMap;
 use itertools::{zip_eq, Itertools};
+use log::debug;
 
 use crate::field::extension::{Extendable, FieldExtension};
 use crate::field::types::Field;
@@ -339,14 +340,18 @@ impl<'a, F: Field> PartitionWitness<'a, F> {
 
     pub fn full_witness(self) -> MatrixWitness<F> {
         let mut wire_values = vec![vec![F::ZERO; self.degree]; self.num_wires];
+        let mut num_assigned = 0;
         for i in 0..self.degree {
             for j in 0..self.num_wires {
                 let t = Target::Wire(Wire { row: i, column: j });
                 if let Some(x) = self.try_get_target(t) {
                     wire_values[j][i] = x;
+                    num_assigned += 1;
                 }
             }
         }
+        debug!("degree: {}, num_wires: {}, assigned: {}, ratio: {}",
+            self.degree, self.num_wires, num_assigned, num_assigned as f32 / (self.degree * self.num_wires) as f32);
 
         MatrixWitness { wire_values }
     }
