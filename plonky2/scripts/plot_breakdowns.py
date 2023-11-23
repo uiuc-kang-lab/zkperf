@@ -12,8 +12,7 @@ def plot_overall(data):
     for dict in data:
         tasks.append(dict["name"])
         d = dict["prove"]["prove breakdown"]
-        generator_key = [key for key in d if "generators" in key][0]
-        wire_commit_total = d[generator_key] + d["compute full witness"] + d["compute wire polynomials"] + d["compute wires commitment"]
+        wire_commit_total = d["compute wire polynomials"] + d["compute wires commitment"]
         arg_polys_total = d["compute partial products"] + d["commit  partial products, Z's and, if any, lookup polynomials"]
         quotient_total = d["compute quotient polys"] + d["split up quotient polys"] + d["commit  quotient polys"]
         opening_total = d["construct the opening set, including lookups"] + d["split up quotient polys"] + d["commit  quotient polys"]
@@ -46,8 +45,6 @@ def plot_overall(data):
 
 def plot_wire_commit(data):
     tasks = []
-    generators = []
-    witnesses = []
     wire_polys = []
     iffts = []
     ffts = []
@@ -57,17 +54,14 @@ def plot_wire_commit(data):
         tasks.append(dict["name"])
         d = dict["prove"]["prove breakdown"]
         bd_dict = d["compute wires commitment breakdown"]
-        generator_key = [key for key in d if "generators" in key][0]
-        generator = d[generator_key]
-        witness = d["compute full witness"]
         poly = d["compute wire polynomials"]
-        ifft = bd_dict["IFFT"]
-        fft = bd_dict["FFT + blinding"]
+        ifft_key = [key for key in bd_dict if "IFFT" in key][0]
+        ifft = bd_dict[ifft_key]
+        fft_key = [key for key in bd_dict if "FFT + blinding" in key][0]
+        fft = bd_dict[fft_key]
         lde = bd_dict["transpose LDEs"]
         merkle = bd_dict["build Merkle tree"]
-        print(dict["name"], generator, witness, poly, ifft, fft, lde, merkle)
-        generators.append(generator)
-        witnesses.append(witness)
+        print(dict["name"], poly, ifft, fft, lde, merkle)
         wire_polys.append(poly)
         iffts.append(ifft)
         ffts.append(fft)
@@ -75,8 +69,6 @@ def plot_wire_commit(data):
         merkles.append(merkle)
 
     times = {
-        "run generators": np.array(generators),
-        "compute full witness": np.array(witnesses),
         "compute wire polynomials": np.array(wire_polys),
         "wire commitment IFFT": np.array(iffts),
         "wire commitment FFT + blinding": np.array(ffts),
@@ -112,8 +104,10 @@ def plot_arg_commit(data):
         d = dict["prove"]["prove breakdown"]
         bd_dict = d["commit  partial products, Z's and, if any, lookup polynomials breakdown"]
         prod = d["compute partial products"]
-        ifft = bd_dict["IFFT"]
-        fft = bd_dict["FFT + blinding"]
+        ifft_key = [key for key in bd_dict if "IFFT" in key][0]
+        ifft = bd_dict[ifft_key]
+        fft_key = [key for key in bd_dict if "FFT + blinding" in key][0]
+        fft = bd_dict[fft_key]
         lde = bd_dict["transpose LDEs"]
         merkle = bd_dict["build Merkle tree"]
         prods.append(prod)
@@ -158,7 +152,8 @@ def plot_quotient_commit(data):
         bd_dict = d["commit  quotient polys breakdown"]
         quot = d["compute quotient polys"]
         split = d["split up quotient polys"]
-        fft = bd_dict["FFT + blinding"]
+        fft_key = [key for key in bd_dict if "FFT + blinding" in key][0]
+        fft = bd_dict[fft_key]
         lde = bd_dict["transpose LDEs"]
         merkle = bd_dict["build Merkle tree"]
         quots.append(quot)
