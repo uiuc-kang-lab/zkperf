@@ -1,0 +1,21 @@
+[package]
+name = "plonky2-lookup-bench"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[profile.dev]
+opt-level = 3
+
+[profile.test]
+opt-level = 3
+
+[dependencies]
+plonky2 = { git = "https://github.com/mir-protocol/plonky2.git", default-features = false }
+itertools = { version = "0.11.0", default-features = false }
+jemallocator = "0.5.0"
+log = { version = "0.4.14", default-features = false }
+anyhow = { version = "1.0.40", default-features = false }
+rand = "0.8.5"
+serde_json = "1.0.108"

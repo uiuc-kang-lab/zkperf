@@ -1,0 +1,8 @@
+glt
+lookup_groth16_cs
+lookup_groth16_pk
+lookup_groth16_vk
+lookup_plonk_cs
+lookup_plonk_pk
+lookup_plonk_vk
+*.json
