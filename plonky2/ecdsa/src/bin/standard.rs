@@ -1,5 +1,7 @@
 use plonky2::field::secp256k1_base::Secp256K1Base;
 use plonky2::get_gate_tag_impl;
+use plonky2::plonk::config::GenericConfig;
+use plonky2::plonk::config::PoseidonGoldilocksConfig;
 use plonky2::read_gate_impl;
 use plonky2_ecdsa::gadgets::glv::GLVDecompositionGenerator;
 use plonky2_ecdsa::gadgets::nonnative::NonNativeInverseGenerator;
@@ -26,7 +28,6 @@ use plonky2::hash::hash_types::RichField;
 use plonky2::iop::witness::PartialWitness;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::CircuitConfig;
-use plonky2::plonk::config::{GenericConfig, KeccakGoldilocksConfig};
 use plonky2::plonk::prover::prove;
 use plonky2::util::serialization::{GateSerializer, WitnessGeneratorSerializer};
 use plonky2::util::timing::TimingTree;
@@ -170,7 +171,7 @@ fn main() {
     }
 
     const D: usize = 2;
-    type C = KeccakGoldilocksConfig;
+    type C = PoseidonGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
 
     type Curve = Secp256K1;
