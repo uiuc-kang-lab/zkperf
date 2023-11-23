@@ -2,6 +2,7 @@ use alloc::vec::Vec;
 use alloc::{format, vec};
 use core::cmp::min;
 use core::mem::swap;
+use std::time::Instant;
 
 use anyhow::{ensure, Result};
 use hashbrown::HashMap;
@@ -117,11 +118,14 @@ where
     C::Hasher: Hasher<F>,
     C::InnerHasher: Hasher<F>,
 {
-    let partition_witness = timed!(
-        timing,
-        &format!("run {} generators", prover_data.generators.len()),
-        generate_partial_witness(inputs, prover_data, common_data)
-    );
+    // let partition_witness = timed!(
+    //     timing,
+    //     &format!("run {} generators", prover_data.generators.len()),
+    //     generate_partial_witness(inputs, prover_data, common_data)
+    // );
+
+    let partition_witness =
+        generate_partial_witness(inputs, prover_data, common_data);
 
     prove_with_partition_witness(prover_data, common_data, partition_witness, timing)
 }
@@ -151,12 +155,15 @@ where
     let public_inputs = partition_witness.get_targets(&prover_data.public_inputs);
     let public_inputs_hash = C::InnerHasher::hash_no_pad(&public_inputs);
 
-    let witness = timed!(
-        timing,
-        "compute full witness",
-        partition_witness.full_witness()
-    );
+    // let witness = timed!(
+    //     timing,
+    //     "compute full witness",
+    //     partition_witness.full_witness()
+    // );
 
+    let witness = partition_witness.full_witness();
+
+    timing.enter_time = Instant::now();
     let wires_values: Vec<PolynomialValues<F>> = timed!(
         timing,
         "compute wire polynomials",

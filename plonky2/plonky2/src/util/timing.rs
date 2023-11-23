@@ -11,7 +11,7 @@ pub struct TimingTree {
     /// The level at which to log this scope and its children.
     level: log::Level,
     /// The time when this scope was created.
-    enter_time: Instant,
+    pub enter_time: Instant,
     /// The time when this scope was destroyed, or None if it has not yet been destroyed.
     exit_time: Option<Instant>,
     /// Any child scopes.
