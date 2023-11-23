@@ -1,7 +1,6 @@
 use plonky2::field::secp256k1_base::Secp256K1Base;
 use plonky2::get_gate_tag_impl;
-use plonky2::plonk::config::GenericConfig;
-use plonky2::plonk::config::PoseidonGoldilocksConfig;
+use plonky2::plonk::config::{GenericConfig, KeccakGoldilocksConfig};
 use plonky2::read_gate_impl;
 use plonky2_ecdsa::gadgets::glv::GLVDecompositionGenerator;
 use plonky2_ecdsa::gadgets::nonnative::NonNativeInverseGenerator;
@@ -171,7 +170,7 @@ fn main() {
     }
 
     const D: usize = 2;
-    type C = PoseidonGoldilocksConfig;
+    type C = KeccakGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
 
     type Curve = Secp256K1;
@@ -280,4 +279,3 @@ fn main() {
     let mut file = File::create(outp_json).unwrap();
     let _ = file.write_all(json_string.as_bytes());
 }
-// }

@@ -1,4 +1,4 @@
-use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
+use plonky2::plonk::config::{GenericConfig, KeccakGoldilocksConfig};
 use zkml::{model::ModelCircuit, utils::proving::time_circuit};
 
 use jemallocator::Jemalloc;
@@ -24,7 +24,7 @@ fn main() {
   }
 
   const D: usize = 2;
-  type C = PoseidonGoldilocksConfig;
+  type C = KeccakGoldilocksConfig;
   type F = <C as GenericConfig<D>>::F;
   let (circuit, builder, pw) =
     ModelCircuit::generate_from_file::<F, C, D>(&config_fname, &inp_fname, &sweep_variable);

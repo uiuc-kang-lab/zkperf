@@ -15,7 +15,7 @@ use plonky2::{
     plonk::{
         circuit_builder::CircuitBuilder,
         circuit_data::{CircuitConfig, CircuitData},
-        config::{GenericConfig, PoseidonGoldilocksConfig},
+        config::{GenericConfig, KeccakGoldilocksConfig},
         prover::prove,
     },
     util::timing::TimingTree,
@@ -171,11 +171,11 @@ fn verify_merkle_proof_circuit(
     nr_layers: usize,
     cols: usize,
 ) -> (
-    CircuitData<GoldilocksField, PoseidonGoldilocksConfig, 2>,
+    CircuitData<GoldilocksField, KeccakGoldilocksConfig, 2>,
     Vec<HashOutputTarget>,
 ) {
     const D: usize = 2;
-    type C = PoseidonGoldilocksConfig;
+    type C = KeccakGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
 
     let mut targets: Vec<BigUintTarget> = Vec::new();
@@ -288,7 +288,7 @@ fn verify_merkle_proof_circuit(
 fn get_tree(nr_leaves: u64) -> MerkleTree {
     const GOLDILOCKS_FIELD_ORDER: u64 = 18446744069414584321;
     const D: usize = 2;
-    type C = PoseidonGoldilocksConfig;
+    type C = KeccakGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
 
     let mut rng = rand::thread_rng();
@@ -313,7 +313,7 @@ fn main() {
     }
 
     const D: usize = 2;
-    type C = PoseidonGoldilocksConfig;
+    type C = KeccakGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
 
     let tree: MerkleTree = get_tree(1024);
