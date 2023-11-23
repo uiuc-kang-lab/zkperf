@@ -81,7 +81,10 @@ pub fn run_lookup(n: u16, k:usize){
     let results = json!({
       "Framework": "plonky2",
       "Backend": "Plonk+FRI",
-      "Curve": "NaN",
+      "TableSize": n,
+      "NbQueries": k,
+      "NbConstraints": "Not Valid",
+      "Curve": "N/A",
       "ProverTime": proof_duration.as_secs_f32(),
       "VerifierTime": verify_duration.as_nanos() as f32 / 1000000.,
       "ProofSize": proof_len
