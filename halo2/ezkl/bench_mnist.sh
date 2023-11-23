@@ -3,7 +3,7 @@
 BUILD_DIR=.
 OUTPUT="mnist_measurement.json"
 EXECUTABLE="./target/release/ezkl"
-NAME=model
+NAME=model_truncate
 EXAMPLE_PATH="examples/mnist"
 
 if [ ! -f "$OUTPUT" ]; then
