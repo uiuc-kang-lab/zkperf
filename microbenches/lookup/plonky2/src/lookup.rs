@@ -8,7 +8,7 @@ use plonky2::field::types::Field;
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::CircuitConfig;
-use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
+use plonky2::plonk::config::{GenericConfig, KeccakGoldilocksConfig};
 use plonky2::plonk::prover::prove;
 use plonky2::gates::lookup_table::LookupTable;
 use plonky2::util::timing::TimingTree;
@@ -16,7 +16,7 @@ use plonky2::util::timing::TimingTree;
 pub fn run_lookup(n: u16, k:usize){
     let mut rng = rand::thread_rng();
     const D: usize = 2;
-    type C = PoseidonGoldilocksConfig;
+    type C = KeccakGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
     let table_vec: Vec<u16> = (0..n).collect();
     let table: LookupTable = Arc::new((0..n).zip_eq(table_vec).collect());
@@ -50,32 +50,42 @@ pub fn run_lookup(n: u16, k:usize){
         pw.set_target(initial_query_vec[i], F::from_canonical_usize(look_val_vec[i]))
     }
 
+    println!("building circuit");
+    let start = Instant::now();
     let data = builder.build::<C>();
+    let build_duration = start.elapsed();
+    println!("circuit build duration: {:?}", build_duration);
+    println!("proving circuit");
     let mut timing = TimingTree::new("prove", Level::Info);
-    let time_start = Instant::now();
-    let proof = prove(&data.prover_only, &data.common, pw, &mut timing).unwrap();
-    let prover_time = time_start.elapsed();
-    println!("Prover time: {:?}", prover_time);
+    let proof = prove::<F, C, D>(&data.prover_only, &data.common, pw, &mut timing).unwrap();
+    timing.pop();
+    timing.print();
 
-    let time_start = Instant::now();
-    data.verify(proof.clone()).unwrap();
-    let verifier_time  = time_start.elapsed();
-    println!("Verifier time: {:?}", verifier_time);
+    let proof_duration = timing.duration();
+    println!("Proving time: {:?}", proof_duration);
 
     let proof_bytes = proof.to_bytes();
     let proof_len = proof_bytes.len();
     println!("Proof size: {} bytes", proof_len);
 
+    println!("verifying circuit");
+    let mut timing = TimingTree::new("verify", Level::Info);
+    data.verify(proof.clone()).expect("verify error");
+    timing.pop();
+    timing.print();
+
+    let verify_duration = timing.duration();
+    println!("Verifying time: {:?}", verify_duration);
+
+    println!("writing results");
     let results = json!({
-        "Framework": "plonky2",
-        "Backend": "PLONK-FRI",
-        "TableSize": n,
-        "NbQueries": k,
-        "NbConstraints": "Not Valid",
-        "ProverTime": prover_time.as_secs_f32(),
-        "VerifierTime": verifier_time.as_nanos() as f32 / 1000000.,
-        "ProofSize": proof_len
-      });
+      "Framework": "plonky2",
+      "Backend": "Plonk+FRI",
+      "Curve": "NaN",
+      "ProverTime": proof_duration.as_secs_f32(),
+      "VerifierTime": verify_duration.as_nanos() as f32 / 1000000.,
+      "ProofSize": proof_len
+    });
 
       let json_string = serde_json::to_string(&results).unwrap();
       let output_path = "plonky2lookup_".to_owned() + &n.to_string() + "_" +&k.to_string()+"_" + ".json";
