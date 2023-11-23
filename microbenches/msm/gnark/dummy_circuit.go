@@ -3,7 +3,7 @@ package main
 import "github.com/consensys/gnark/frontend"
 
 type DummyCircuit struct {
-	In  []frontend.Variable // Size of MSM = len(In) + 1
+	In  []frontend.Variable
 	Out frontend.Variable
 }
 
