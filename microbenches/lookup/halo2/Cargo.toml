@@ -1,0 +1,13 @@
+[package]
+name = "halo2"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+halo2 = { git= "https://github.com/span14/halo2", branch="benchmark", package="halo2"}
+halo2_gadgets = { git= "https://github.com/span14/halo2", branch="benchmark", package="halo2_gadgets", features = ["circuit-params"]}
+halo2_curves = { git = "https://github.com/privacy-scaling-explorations/halo2curves", tag = "0.3.2", package = "halo2curves"}
+halo2_proofs = { git= "https://github.com/span14/halo2", branch="benchmark", package="halo2_proofs", features = ["circuit-params", "zkml"]}
+rand = "0.8.5"
