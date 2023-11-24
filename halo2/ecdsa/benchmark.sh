@@ -28,7 +28,7 @@ $EXECUTABLE setup
 echo "****GENERATING PROOF FOR SAMPLE INPUT****"
 start=`date +%s%N`
 touch /tmp/test
-{ /usr/bin/time -v $EXECUTABLE prove; } 2> /tmp/test
+{ /usr/bin/time -v $EXECUTABLE prove > ecdsa_witness.log; } 2> /tmp/test
 echo "$(jq --arg tmp $(echo "scale=6; $(cat /tmp/test | grep "Maximum resident set size" | tr -d -c 0-9)/1024" | bc) '.+={"MemoryConsumption": $tmp }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 rm /tmp/test
 end=`date +%s%N`
