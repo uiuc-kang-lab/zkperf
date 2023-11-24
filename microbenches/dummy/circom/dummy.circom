@@ -3,6 +3,8 @@ pragma circom 2.0.0;
 template Dummy(n) {
     signal input a[n];
     signal input out;
+    signal output placeholder;
+    
     signal buf[n+1];
 
     buf[0] <-- 1;
