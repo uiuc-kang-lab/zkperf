@@ -37,16 +37,22 @@ cd ..
 
 for col in "${cols[@]}"; do
     touch "$SWEEP_DIR"/"$col"_mnist_log
-    "$ML_DIR"/target/release/time_circuit mnist "$ML_DIR"/examples/mnist/model.msgpack "$ML_DIR"/examples/mnist/inp.msgpack build "$SWEEP_DIR"/"$col"_mnist.json $col
-    { RUST_LOG=debug /usr/bin/time -v "$ML_DIR"/target/release/time_circuit mnist "$ML_DIR"/examples/mnist/model.msgpack "$ML_DIR"/examples/mnist/inp.msgpack prove "$SWEEP_DIR"/"$col"_mnist.json $col; } 2> "$SWEEP_DIR"/"$col"_mnist_log
+    "$ML_DIR"/target/release/time_circuit mnist "$ML_DIR"/examples/mnist/model.msgpack "$ML_DIR"/examples/mnist/inp.msgpack build "$SWEEP_DIR"/"$col"_mnist.json --cols $col
+    { RUST_LOG=debug /usr/bin/time -v "$ML_DIR"/target/release/time_circuit mnist "$ML_DIR"/examples/mnist/model.msgpack "$ML_DIR"/examples/mnist/inp.msgpack prove "$SWEEP_DIR"/"$col"_mnist.json --cols $col; } 2> "$SWEEP_DIR"/"$col"_mnist_log
     echo "$(jq --arg tmp $(echo "scale=6; $(cat "$SWEEP_DIR"/"$col"_mnist_log | grep "Maximum resident set size" | tr -d -c 0-9)/1024" | bc) '.+={"MemoryConsumption": $tmp }' "$SWEEP_DIR"/"$col"_mnist.json)" > "$SWEEP_DIR"/"$col"_mnist.json
     echo "$(jq '. += {"Circuit": "MNIST" }' "$SWEEP_DIR"/"$col"_mnist.json)" > "$SWEEP_DIR"/"$col"_mnist.json
 
     touch "$SWEEP_DIR"/"$col"_dlrm_log
-    "$ML_DIR"/target/release/time_circuit dlrm "$ML_DIR"/examples/dlrm/model.msgpack "$ML_DIR"/examples/dlrm/inp.msgpack build "$SWEEP_DIR"/"$col"_dlrm.json $col
-    { RUST_LOG=debug /usr/bin/time -v "$ML_DIR"/target/release/time_circuit dlrm "$ML_DIR"/examples/dlrm/model.msgpack "$ML_DIR"/examples/dlrm/inp.msgpack prove "$SWEEP_DIR"/"$col"_dlrm.json $col; } 2> "$SWEEP_DIR"/"$col"_dlrm_log
+    "$ML_DIR"/target/release/time_circuit dlrm "$ML_DIR"/examples/dlrm/model.msgpack "$ML_DIR"/examples/dlrm/inp.msgpack build "$SWEEP_DIR"/"$col"_dlrm.json --cols $col
+    { RUST_LOG=debug /usr/bin/time -v "$ML_DIR"/target/release/time_circuit dlrm "$ML_DIR"/examples/dlrm/model.msgpack "$ML_DIR"/examples/dlrm/inp.msgpack prove "$SWEEP_DIR"/"$col"_dlrm.json --cols $col; } 2> "$SWEEP_DIR"/"$col"_dlrm_log
     echo "$(jq --arg tmp $(echo "scale=6; $(cat "$SWEEP_DIR"/"$col"_dlrm_log | grep "Maximum resident set size" | tr -d -c 0-9)/1024" | bc) '.+={"MemoryConsumption": $tmp }' "$SWEEP_DIR"/"$col"_dlrm.json)" > "$SWEEP_DIR"/"$col"_dlrm.json
     echo "$(jq '. += {"Circuit": "DLRM" }' "$SWEEP_DIR"/"$col"_dlrm.json)" > "$SWEEP_DIR"/"$col"_dlrm.json
+
+    touch "$SWEEP_DIR"/"$col"_mnist_no_lookup_log
+    "$ML_DIR"/target/release/time_circuit mnist "$ML_DIR"/examples/mnist/model.msgpack "$ML_DIR"/examples/mnist/inp.msgpack build "$SWEEP_DIR"/"$col"_mnist_no_lookup.json --cols $col --no-lookups
+    { RUST_LOG=debug /usr/bin/time -v "$ML_DIR"/target/release/time_circuit mnist "$ML_DIR"/examples/mnist/model.msgpack "$ML_DIR"/examples/mnist/inp.msgpack prove "$SWEEP_DIR"/"$col"_mnist_no_lookup.json --cols $col --no-lookups; } 2> "$SWEEP_DIR"/"$col"_mnist_log
+    echo "$(jq --arg tmp $(echo "scale=6; $(cat "$SWEEP_DIR"/"$col"_mnist_log | grep "Maximum resident set size" | tr -d -c 0-9)/1024" | bc) '.+={"MemoryConsumption": $tmp }' "$SWEEP_DIR"/"$col"_mnist_no_lookup.json)" > "$SWEEP_DIR"/"$col"_mnist_no_lookup.json
+    echo "$(jq '. += {"Circuit": "MNIST" }' "$SWEEP_DIR"/"$col"_mnist_no_lookup.json)" > "$SWEEP_DIR"/"$col"_mnist_no_lookup.json
 done
 
 curl -d "plonky2 sweep" ntfy.sh/zk_benchmark
