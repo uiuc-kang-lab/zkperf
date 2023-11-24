@@ -15,7 +15,7 @@ def main():
         cols.add(col)
 
   cols = sorted(list(cols))
-  times = {"dlrm": [], "mnist": [], "ecdsa": [], "merkle": []}
+  times = {"dlrm": [], "mnist": [], "ecdsa": [], "merkle": [], "mnist_no_lookup": []}
 
   fig, axes = plt.subplots(
         figsize=(4 * 4, 3.3), ncols=4, nrows=1,
@@ -67,6 +67,25 @@ def main():
   axes[3].set_ylabel('')
 
   plt.savefig('col_sweep.pdf', bbox_inches='tight', pad_inches=0)
+
+  fig, axes = plt.subplots(
+        figsize=(1 * 4, 3.3), ncols=1, nrows=1,
+        sharex=False
+  )
+  fig.tight_layout()
+
+  df_lookup = pd.DataFrame(data=times['mnist'], columns=['Columns', 'Proving time (s)'])
+  sns.lineplot(x='Columns', y='Proving time (s)', data=df_lookup)
+  axes.plot(df_lookup['Columns'], df_lookup['Proving time (s)'], marker='o', label="with lookups")
+  df = pd.DataFrame(data=times['mnist_no_lookup'], columns=['Columns', 'Proving time (s)'])
+  sns.lineplot(x='Columns', y='Proving time (s)', data=df)
+  axes.plot(df['Columns'], df['Proving time (s)'], marker='o', label="without lookups")
+  axes.set_ylim(0)
+  axes.set_title('plonky2 MNIST with/without lookups')
+  plt.legend()
+  axes.set_ylabel('')
+
+  plt.savefig('mnist_lookups.pdf', bbox_inches='tight', pad_inches=0)
 
 if __name__ == '__main__':
   main()
