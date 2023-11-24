@@ -12,7 +12,7 @@ echo "****GENERATING WITNESS FOR SAMPLE INPUT****"
 node dummy_main_js/generate_witness.js dummy_main_js/dummy_main.wasm input.json witness.wtns
 
 echo "****GENERATING ZKEY 0****"
-node ../../../ groth16 setup dummy_main.r1cs powers.ptau dummy_main_0.zkey
+npx snarkjs groth16 setup dummy_main.r1cs powers.ptau dummy_main_0.zkey
 
 echo "****GENERATING FINAL ZKEY****"
 npx snarkjs zkey beacon dummy_main_0.zkey dummy_main.zkey 0102030405060708090a0b0c0d0e0f101112231415161718221a1b1c1d1e1f 10 -n="Final Beacon phase2"
