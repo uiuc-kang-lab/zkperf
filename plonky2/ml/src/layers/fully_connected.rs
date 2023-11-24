@@ -20,7 +20,7 @@ use crate::{
     dot_prod::DotProductCircuit,
     gadget::{Gadget, GadgetConfig, GadgetType},
     nonlinear::relu::ReluCircuit,
-    var_div::DivRoundCircuit,
+    var_div::{DivRoundCircuit, DivRoundConfig},
   },
   layers::layer::ActivationType,
 };
@@ -200,7 +200,11 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F> + 'static, const D
     let final_result_flat = if self.config.normalize {
       let mm_flat = mm_result.iter().map(|t| &*t).collect::<Vec<_>>();
 
-      let div_gadget = DivRoundCircuit::construct(gadget_config.clone());
+      let div_config = DivRoundConfig {
+        _gadget: gadget_config.clone(),
+        no_lookups: layer_config.no_lookups,
+      };
+      let div_gadget = DivRoundCircuit::construct(Rc::new(div_config));
       let sf = constants
         .get(&(gadget_config.scale_factor as i64))
         .unwrap()

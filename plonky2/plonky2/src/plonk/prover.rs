@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use alloc::{format, vec};
+use alloc::vec;
 use core::cmp::min;
 use core::mem::swap;
 use std::time::Instant;

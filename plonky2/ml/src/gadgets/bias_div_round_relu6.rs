@@ -2,23 +2,27 @@ use std::sync::Arc;
 use std::{collections::HashMap, rc::Rc};
 
 use crate::gates::bias_div_round::BiasDivRoundGate;
+use crate::gates::comparison::ComparisonGate;
 
 use plonky2::field::extension::Extendable;
 use plonky2::hash::hash_types::RichField;
 use plonky2::iop::target::Target;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 
-type BiasDivRoundRelu6Config = GadgetConfig;
+pub struct BiasDivRoundRelu6Config {
+  pub(crate) _gadget: Rc<GadgetConfig>,
+  pub(crate) no_lookups: bool,
+}
 
 use super::gadget::{Gadget, GadgetConfig, GadgetType};
 
 pub struct BiasDivRoundRelu6Circuit {
-  _config: Rc<BiasDivRoundRelu6Config>,
+  config: Rc<BiasDivRoundRelu6Config>,
 }
 
 impl BiasDivRoundRelu6Circuit {
   pub fn construct(config: Rc<BiasDivRoundRelu6Config>) -> Self {
-    Self { _config: config }
+    Self { config }
   }
 
   pub fn generate_map(scale_factor: u64, min_val: i64, num_rows: i64) -> HashMap<i64, i64> {
@@ -99,15 +103,15 @@ impl<F: RichField + Extendable<D>, const D: usize> Gadget<F, D> for BiasDivRound
 
     assert!(inps.len() % biases.len() == 0);
 
-    let relu_table = gadget_config
-      .tables
-      .get(&GadgetType::BiasDivRoundRelu6)
-      .unwrap()[0];
-
     let mut out_vec = vec![];
 
     let num_ops = BiasDivRoundGate::num_ops(&builder.config);
     let mut bdr_gates = vec![];
+    let relu6 = F::from_canonical_u64(6 * gadget_config.scale_factor);
+    let mut relu6_t = Target::default();
+    if self.config.no_lookups {
+      relu6_t = builder.constant(relu6);
+    }
     for i in 0..inps.len() {
       let wire_idx = i % num_ops;
       if wire_idx == 0 {
@@ -142,17 +146,33 @@ impl<F: RichField + Extendable<D>, const D: usize> Gadget<F, D> for BiasDivRound
         bdr_gates[gate_idx],
         BiasDivRoundGate::wire_ith_div(wire_idx),
       );
-      // div_res + div_outp_min_val in lookup
-
-      // let x_bits = builder.split_le(div_res, 64);
-      // let x_relu = builder.select(x_bits[63], zero, div_res);
 
       // serves as a constraint for both relu input and output
-      let relu_pos = builder.sub(div_res, div_outp_min_val_t);
-      let outp = builder.add_lookup_from_index(relu_pos, relu_table);
+      if self.config.no_lookups {
+        let x_bits = builder.split_le(div_res, 64);
+        let x_relu = builder.select(x_bits[63], zero, div_res);
+        let comp_gate = ComparisonGate::<F, D>::new(32);
+        let row = builder.add_gate(comp_gate, vec![]);
+        builder.connect(
+          x_relu,
+          Target::wire(row, ComparisonGate::<F, D>::wire_first_input()),
+        );
+        builder.connect(
+          relu6_t,
+          Target::wire(row, ComparisonGate::<F, D>::wire_second_input()),
+        );
+        out_vec.push(Target::wire(row, ComparisonGate::<F, D>::wire_result()));
+      } else {
+        let relu_table = gadget_config
+          .tables
+          .get(&GadgetType::BiasDivRoundRelu6)
+          .unwrap()[0];
+        let relu_pos = builder.sub(div_res, div_outp_min_val_t);
+        let outp = builder.add_lookup_from_index(relu_pos, relu_table);
+        out_vec.push(outp);
+      }
 
       // interleave div with relu and div without relu
-      out_vec.push(outp);
       out_vec.push(div_res);
     }
 

@@ -9,15 +9,18 @@ use crate::gates::var_div::DivRoundGate;
 
 use super::gadget::{Gadget, GadgetConfig, GadgetType};
 
-type DivRoundConfig = GadgetConfig;
+pub struct DivRoundConfig {
+  pub(crate) _gadget: Rc<GadgetConfig>,
+  pub(crate) no_lookups: bool,
+}
 
 pub struct DivRoundCircuit {
-  _config: Rc<DivRoundConfig>,
+  config: Rc<DivRoundConfig>,
 }
 
 impl DivRoundCircuit {
   pub fn construct(config: Rc<DivRoundConfig>) -> Self {
-    Self { _config: config }
+    Self { config }
   }
 
   pub fn configure<F: RichField + Extendable<D>, const D: usize>(
@@ -48,9 +51,13 @@ impl<F: RichField + Extendable<D>, const D: usize> Gadget<F, D> for DivRoundCirc
 
     // r is already constrained within the gate
     // check a stronger constraint than necessary 2 * div \in [0, 2^N)
-    let div_lookup = gadget_config.tables.get(&GadgetType::InputLookup).unwrap()[0];
     let two_div = builder.constant(F::from_canonical_u16(2) * div);
-    builder.add_lookup_from_index(two_div, div_lookup);
+    if self.config.no_lookups {
+      builder.range_check(two_div, 16);
+    } else {
+      let div_lookup = gadget_config.tables.get(&GadgetType::InputLookup).unwrap()[0];
+      builder.add_lookup_from_index(two_div, div_lookup);
+    }
 
     let num_ops = DivRoundGate::num_ops(&builder.config);
     let mut div_gates = vec![];
