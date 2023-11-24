@@ -2,7 +2,7 @@ use std::{collections::HashMap, rc::Rc, marker::PhantomData};
 
 use crate::{
   gadgets::{
-    bias_div_round_relu6::BiasDivRoundRelu6Circuit,
+    bias_div_round_relu6::{BiasDivRoundRelu6Circuit, BiasDivRoundRelu6Config},
     gadget::{Gadget, GadgetConfig, GadgetType},
   },
   layers::fully_connected::{FullyConnectedCircuit, FullyConnectedConfig},
@@ -353,7 +353,11 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
 
     // bdr outputs interleaved [(relu'd, div'd), (relu'd, div'd), ...]
     // Uninterleave depending on whether or not we're doing the relu
-    let bdr_circuit = BiasDivRoundRelu6Circuit::construct(gadget_config.clone());
+    let bdr_config = BiasDivRoundRelu6Config {
+      _gadget: gadget_config.clone(),
+      no_lookups: layer_config.no_lookups,
+    };
+    let bdr_circuit = BiasDivRoundRelu6Circuit::construct(Rc::new(bdr_config));
     let outp_flat = outp_flat.iter().map(|x| x).collect::<Vec<_>>();
     let outp = bdr_circuit.make_circuit(builder, &vec![outp_flat, biases], &vec![], gadget_config);
     let outp = if conv_config.activation == ActivationType::Relu6 {
@@ -380,6 +384,10 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
 
 impl <F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize> GadgetConsumer for Conv2DCircuit<F, C, D> {
   fn used_gadgets(&self, _layer_params: Vec<i64>) -> Vec<crate::gadgets::gadget::GadgetType> {
-    vec![GadgetType::BiasDivRoundRelu6, GadgetType::InputLookup]
+    if self.config.no_lookups {
+      vec![GadgetType::BiasDivRoundRelu6]
+    } else {
+      vec![GadgetType::BiasDivRoundRelu6, GadgetType::InputLookup]
+    }
   }
 }

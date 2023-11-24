@@ -1,7 +1,8 @@
 use std::{
   collections::{BTreeMap, BTreeSet, HashMap},
+  marker::PhantomData,
   rc::Rc,
-  sync::{Arc, Mutex}, marker::PhantomData,
+  sync::{Arc, Mutex},
 };
 
 use lazy_static::lazy_static;
@@ -100,19 +101,29 @@ impl ModelCircuit {
     constants
   }
 
-  pub fn generate_from_file<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
+  pub fn generate_from_file<
+    F: RichField + Extendable<D>,
+    C: GenericConfig<D, F = F>,
+    const D: usize,
+  >(
     config_file: &str,
     inp_file: &str,
     sweep_variable: &usize,
+    no_lookups: bool,
   ) -> (ModelCircuit, CircuitBuilder<F, D>, PartialWitness<F>) {
     let config = load_model_msgpack(config_file, inp_file);
-    Self::generate_from_msgpack::<F, C, D>(config, true, sweep_variable)
+    Self::generate_from_msgpack::<F, C, D>(config, true, sweep_variable, no_lookups)
   }
 
-  pub fn generate_from_msgpack<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
+  pub fn generate_from_msgpack<
+    F: RichField + Extendable<D>,
+    C: GenericConfig<D, F = F>,
+    const D: usize,
+  >(
     config: ModelMsgpack,
     panic_empty_tensor: bool,
-    sweep_variable: &usize
+    sweep_variable: &usize,
+    no_lookups: bool,
   ) -> (ModelCircuit, CircuitBuilder<F, D>, PartialWitness<F>) {
     let to_field = |x: i64| {
       let bias = 1 << 31;
@@ -138,7 +149,7 @@ impl ModelCircuit {
       _ => panic!("unknown op: {}", x),
     };
 
-    if *sweep_variable < 25{
+    if *sweep_variable < 25 {
       panic!("Invalid Sweep Variable")
     }
 
@@ -231,6 +242,7 @@ impl ModelCircuit {
             inp_shapes: layer.inp_shapes.iter().map(|x| i64_to_usize(x)).collect(),
             out_shapes: layer.out_shapes.iter().map(|x| i64_to_usize(x)).collect(),
             mask: layer.mask.clone(),
+            no_lookups,
           }
         })
         .collect::<Vec<_>>();
@@ -257,7 +269,9 @@ impl ModelCircuit {
       }
     };
 
-    used_gadgets.insert(GadgetType::InputLookup);
+    if !no_lookups {
+      used_gadgets.insert(GadgetType::InputLookup);
+    }
 
     // Make luts
     let og_gadget_config = crate::model::GADGET_CONFIG.lock().unwrap().clone();
@@ -275,18 +289,20 @@ impl ModelCircuit {
       ..og_gadget_config
     };
     let mut gadget_config = crate::model::GADGET_CONFIG.lock().unwrap().clone();
-    gadget_config = InputLookupCircuit::configure(&mut builder, gadget_config);
-    for gadget_type in used_gadgets.iter() {
-      gadget_config = match gadget_type {
-        GadgetType::BiasDivRoundRelu6 => {
-          BiasDivRoundRelu6Circuit::configure(&mut builder, gadget_config)
-        }
-        GadgetType::DivRound => DivRoundCircuit::configure(&mut builder, gadget_config),
-        GadgetType::DotProduct => DotProductCircuit::configure(&mut builder, gadget_config),
-        GadgetType::Logistic => LogisticGadgetCircuit::configure(&mut builder, gadget_config),
-        GadgetType::Relu => ReluCircuit::configure(&mut builder, gadget_config),
-        GadgetType::InputLookup => gadget_config, // This is always loaded
-      };
+    if !no_lookups {
+      gadget_config = InputLookupCircuit::configure(&mut builder, gadget_config);
+      for gadget_type in used_gadgets.iter() {
+        gadget_config = match gadget_type {
+          GadgetType::BiasDivRoundRelu6 => {
+            BiasDivRoundRelu6Circuit::configure(&mut builder, gadget_config)
+          }
+          GadgetType::DivRound => DivRoundCircuit::configure(&mut builder, gadget_config),
+          GadgetType::DotProduct => DotProductCircuit::configure(&mut builder, gadget_config),
+          GadgetType::Logistic => LogisticGadgetCircuit::configure(&mut builder, gadget_config),
+          GadgetType::Relu => ReluCircuit::configure(&mut builder, gadget_config),
+          GadgetType::InputLookup => gadget_config, // This is always loaded
+        };
+      }
     }
 
     let used_gadgets = Arc::new(used_gadgets);
@@ -310,7 +326,11 @@ impl ModelCircuit {
     )
   }
 
-  pub fn construct<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const D: usize>(
+  pub fn construct<
+    F: RichField + Extendable<D>,
+    C: GenericConfig<D, F = F> + 'static,
+    const D: usize,
+  >(
     &self,
     builder: &mut CircuitBuilder<F, D>,
   ) -> (Vec<Array<Rc<Target>, IxDyn>>, Vec<Target>) {

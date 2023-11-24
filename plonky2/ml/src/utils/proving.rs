@@ -69,6 +69,8 @@ use plonky2::{
 
 use crate::gates::bias_div_round::BiasDivRoundGate;
 use crate::gates::bias_div_round::BiasDivRoundGenerator;
+use crate::gates::comparison::ComparisonGate;
+use crate::gates::comparison::ComparisonGenerator;
 use crate::gates::dot_prod::DotProductGate;
 use crate::gates::dot_prod::DotProductGenerator;
 use crate::gates::var_div::DivRoundGate;
@@ -84,6 +86,7 @@ impl<F: RichField + Extendable<D>, const D: usize> GateSerializer<F, D> for MLGa
     ArithmeticExtensionGate<D>,
     BaseSumGate<2>,
     BiasDivRoundGate,
+    ComparisonGate<F, D>,
     ConstantGate,
     CosetInterpolationGate<F, D>,
     DivRoundGate,
@@ -114,6 +117,7 @@ where
       BaseSplitGenerator<2>,
       BaseSumGenerator<2>,
       BiasDivRoundGenerator<F, D>,
+      ComparisonGenerator<F, D>,
       ConstantGenerator<F>,
       CopyGenerator,
       DivRoundGenerator<F, D>,

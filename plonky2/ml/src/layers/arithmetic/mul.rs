@@ -7,7 +7,7 @@ use plonky2::{
   plonk::circuit_builder::CircuitBuilder,
 };
 
-use crate::{gadgets::{gadget::{GadgetConfig, Gadget, GadgetType}, var_div::DivRoundCircuit}, layers::layer::GadgetConsumer};
+use crate::{gadgets::{gadget::{GadgetConfig, Gadget, GadgetType}, var_div::{DivRoundCircuit, DivRoundConfig}}, layers::layer::GadgetConsumer};
 
 use super::super::super::layers::layer::{Layer, LayerConfig};
 
@@ -21,7 +21,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for MulCircuit {
     tensors: &Vec<Array<Rc<Target>, IxDyn>>,
     _constants: &HashMap<i64, Rc<F>>,
     gadget_config: Rc<GadgetConfig>,
-    _layer_config: &LayerConfig,
+    layer_config: &LayerConfig,
     _rand_targets: &mut Vec<Target>
   ) -> Vec<Array<Rc<Target>, IxDyn>> {
     let inp = &tensors[0];
@@ -38,7 +38,11 @@ impl<F: RichField + Extendable<D>, const D: usize> Layer<F, D> for MulCircuit {
 
     let mul_ref = mul_outp.iter().collect::<Vec<_>>();
 
-    let div_gadget = DivRoundCircuit::construct(gadget_config.clone());
+    let div_config = DivRoundConfig {
+      _gadget: gadget_config.clone(),
+      no_lookups: layer_config.no_lookups,
+    };
+    let div_gadget = DivRoundCircuit::construct(Rc::new(div_config));
     let div_outp = div_gadget.make_circuit(
       builder,
       &vec![mul_ref],

@@ -1,6 +1,5 @@
 use alloc::format;
 use alloc::vec::Vec;
-use log::debug;
 
 use itertools::Itertools;
 use plonky2_field::types::Field;

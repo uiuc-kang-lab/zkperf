@@ -10,7 +10,7 @@ use plonky2::{
 use crate::{
   gadgets::{
     gadget::{Gadget, GadgetConfig, GadgetType},
-    var_div::DivRoundCircuit,
+    var_div::{DivRoundCircuit, DivRoundConfig},
   },
   layers::{conv2d::Conv2DCircuit, conv2d::PaddingEnum, layer::LayerConfig},
 };
@@ -74,7 +74,11 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>  + 'static, const 
 
     let sum_ref = sum_outp.iter().collect::<Vec<_>>();
 
-    let div_gadget = DivRoundCircuit::construct(gadget_config.clone());
+    let div_config = DivRoundConfig {
+      _gadget: gadget_config.clone(),
+      no_lookups: layer_config.no_lookups,
+    };
+    let div_gadget = DivRoundCircuit::construct(Rc::new(div_config));
     let div_outp = div_gadget.make_circuit(
       builder,
       &vec![sum_ref],

@@ -46,6 +46,7 @@ pub struct LayerConfig {
   pub inp_shapes: Vec<Vec<usize>>,
   pub out_shapes: Vec<Vec<usize>>,
   pub mask: Vec<i64>,
+  pub no_lookups: bool
 }
 
 // General issue with rust: I'm not sure how to pass named arguments to a trait...
