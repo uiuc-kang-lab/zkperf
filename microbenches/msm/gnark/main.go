@@ -31,5 +31,7 @@ func main() {
 		}
 	} else if step == "msm" {
 		DummyMSMAffine(n)
+	} else if step == "fft" {
+		DummyFFT(n)
 	}
 }
