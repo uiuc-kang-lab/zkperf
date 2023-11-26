@@ -1,0 +1,55 @@
+MSM Size: 1024
+No of CPU: 10
+Time taken by G1Aff MSM: 654.583µs
+Time taken by G2Aff MSM: 6.517458ms
+MSM Size: 2048
+No of CPU: 10
+Time taken by G1Aff MSM: 857.584µs
+Time taken by G2Aff MSM: 9.470791ms
+MSM Size: 4096
+No of CPU: 10
+Time taken by G1Aff MSM: 1.299208ms
+Time taken by G2Aff MSM: 15.494834ms
+MSM Size: 8192
+No of CPU: 10
+Time taken by G1Aff MSM: 1.297667ms
+Time taken by G2Aff MSM: 16.488583ms
+MSM Size: 16384
+No of CPU: 10
+Time taken by G1Aff MSM: 2.321416ms
+Time taken by G2Aff MSM: 28.211917ms
+MSM Size: 32768
+No of CPU: 10
+Time taken by G1Aff MSM: 4.158625ms
+Time taken by G2Aff MSM: 54.882792ms
+MSM Size: 65536
+No of CPU: 10
+Time taken by G1Aff MSM: 8.581041ms
+Time taken by G2Aff MSM: 104.277833ms
+MSM Size: 131072
+No of CPU: 10
+Time taken by G1Aff MSM: 16.227459ms
+Time taken by G2Aff MSM: 175.590375ms
+MSM Size: 262144
+No of CPU: 10
+Time taken by G1Aff MSM: 32.537292ms
+Time taken by G2Aff MSM: 357.484584ms
+MSM Size: 524288
+No of CPU: 10
+Time taken by G1Aff MSM: 35.68075ms
+Time taken by G2Aff MSM: 565.6225ms
+MSM Size: 1048576
+No of CPU: 10
+Time taken by G1Aff MSM: 81.603042ms
+Time taken by G2Aff MSM: 1.155929166s
+MSM Size: 2097152
+No of CPU: 10
+Time taken by G1Aff MSM: 117.787292ms
+Time taken by G2Aff MSM: 2.053118833s
+MSM Size: 4194304
+No of CPU: 10
+Time taken by G1Aff MSM: 192.308625ms
+Time taken by G2Aff MSM: 3.563473042s
+MSM Size: 8388608
+No of CPU: 10
+Time taken by G1Aff MSM: 381.547292ms
