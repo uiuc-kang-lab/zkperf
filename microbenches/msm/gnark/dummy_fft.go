@@ -24,5 +24,5 @@ func DummyFFT(n int) {
 
 	ifft_time := time.Now()
 	domain.FFTInverse(samples, fft.DIF)
-	fmt.Println("FFT Time:", time.Since(ifft_time))
+	fmt.Println("IFFT Time:", time.Since(ifft_time))
 }
