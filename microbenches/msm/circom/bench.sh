@@ -31,8 +31,9 @@ node ../../../circom/snarkjs/fft.js 2097152
 node ../../../circom/snarkjs/fft.js 4194304
 node ../../../circom/snarkjs/fft.js 8388608
 
+cd ../../dummy/circom
 N=1024
-R=13
+R=12
 
 for i in $(seq 0 1 $R)
 do 
