@@ -1,8 +1,7 @@
 #!/bin/bash
 
-
-N=1000
-R=3
+N=1024
+R=12
 
 for i in $(seq 0 1 $R)
 do 
@@ -19,5 +18,5 @@ do
     end=`date +%s%N`
     echo "Proving time: ($(echo "scale=6; $((end-start))/1000000" | bc)ms)"
     npx snarkjs groth16 verify vkey.json public.json proof.json
-    N=$(expr "$N" "*" 10)
+    N=$(expr "$N" "*" 2)
 done
