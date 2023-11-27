@@ -1,2 +1,5 @@
 *.json
 gmt
+circuit_data/
+fft_data/
+msm_data/
