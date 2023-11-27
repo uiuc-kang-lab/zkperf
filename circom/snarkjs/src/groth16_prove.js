@@ -28,7 +28,9 @@ import * as fs from "fs";
 
 export default async function groth16Prove(zkeyFileName, witnessFileName, logger) {
     // if (logger) logger.debug("Start");
+    const measurement = {};
     var total_start = Date.now()
+    var filereading_start = Date.now();
     const {fd: fdWtns, sections: sectionsWtns} = await binFileUtils.readBinFile(witnessFileName, "wtns", 2, 1<<25, 1<<23);
 
     const wtns = await wtnsUtils.readHeader(fdWtns, sectionsWtns);
@@ -61,7 +63,9 @@ export default async function groth16Prove(zkeyFileName, witnessFileName, logger
     // if (logger) logger.debug("Reading Coeffs");
     const buffCoeffs = await binFileUtils.readSection(fdZKey, sectionsZKey, 4);
 
-    const measurement = {};
+    var filereading_end = Date.now();
+    measurement["Phase 0: File reading"] = filereading_end - filereading_start;
+    
     measurement["Threads"] = curve.tm.concurrency;
 
     var start = Date.now()
