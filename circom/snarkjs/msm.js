@@ -18,14 +18,14 @@ for (let i = 0; i < n; i++) {
     g1affines.set(G1.toAffine(G1.g), i*G1.F.n8*2);
     g2affines.set(G2.toAffine(G2.g), i*G2.F.n8*2);
 }
-const start = performance.now();
+const start = Date.now();
 await G1.multiExpAffine(g1affines, scalars);
-const end = performance.now();
+const end = Date.now();
 console.log(`MSM on G1 cost: ${end - start}ms`);
 
-const start2 = performance.now();
+const start2 = Date.now();
 await G2.multiExpAffine(g1affines, scalars);
-const end2 = performance.now();
+const end2 = Date.now();
 console.log(`MSM on G2 cost: ${end2 - start2}ms`);
 
 
