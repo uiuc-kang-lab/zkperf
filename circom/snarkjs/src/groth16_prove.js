@@ -190,7 +190,6 @@ export default async function groth16Prove(zkeyFileName, witnessFileName, logger
     fs.writeFileSync(`breakdown_${size}.json`, json, function(err) {
         console.log("Writing error");
     })
-    logger.debug(measurement);
     proof.protocol = "groth16";
     proof.curve = curve.name;
 
@@ -202,7 +201,6 @@ export default async function groth16Prove(zkeyFileName, witnessFileName, logger
 
     var total_end = performance.now();
     measurement["Total"] = total_end-total_start;
-
     return {proof, publicSignals};
 }
 

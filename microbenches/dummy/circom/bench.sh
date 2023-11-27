@@ -14,7 +14,7 @@ do
     npx snarkjs zkey verify dummy_main.r1cs powers.ptau dummy_main.zkey
     npx snarkjs zkey export verificationkey dummy_main.zkey vkey.json
     start=`date +%s%N`
-    npx snarkjs groth16 prove dummy_main.zkey witness.wtns proof.json public.json
+    node ../../../circom/snarkjs/cli.js groth16 prove dummy_main.zkey witness.wtns proof.json public.json
     end=`date +%s%N`
     echo "Proving time: ($(echo "scale=6; $((end-start))/1000000" | bc)ms)"
     npx snarkjs groth16 verify vkey.json public.json proof.json
