@@ -186,10 +186,6 @@ export default async function groth16Prove(zkeyFileName, witnessFileName, logger
     end = performance.now()
     // if (logger) logger.debug("Complete");
     measurement["Phase 5: Compute proof"] = end-start;
-    var json = JSON.stringify(measurement);
-    fs.writeFileSync(`breakdown_${size}.json`, json, function(err) {
-        console.log("Writing error");
-    })
     proof.protocol = "groth16";
     proof.curve = curve.name;
 
@@ -201,6 +197,10 @@ export default async function groth16Prove(zkeyFileName, witnessFileName, logger
 
     var total_end = performance.now();
     measurement["Total"] = total_end-total_start;
+    var json = JSON.stringify(measurement);
+    fs.writeFileSync(`breakdown_${size}.json`, json, function(err) {
+        console.log("Writing error");
+    })
     return {proof, publicSignals};
 }
 
