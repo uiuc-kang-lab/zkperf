@@ -24,9 +24,11 @@ import { getCurveFromQ as getCurve } from "./curves.js";
 import { log2 } from "./misc.js";
 import { Scalar, utils, BigBuffer } from "ffjavascript";
 const {stringifyBigInts} = utils;
+import * as fs from "fs";
 
 export default async function groth16Prove(zkeyFileName, witnessFileName, logger) {
-    if (logger) logger.debug("Start");
+    // if (logger) logger.debug("Start");
+    
     const {fd: fdWtns, sections: sectionsWtns} = await binFileUtils.readBinFile(witnessFileName, "wtns", 2, 1<<25, 1<<23);
 
     const wtns = await wtnsUtils.readHeader(fdWtns, sectionsWtns);
@@ -59,17 +61,23 @@ export default async function groth16Prove(zkeyFileName, witnessFileName, logger
     // if (logger) logger.debug("Reading Coeffs");
     const buffCoeffs = await binFileUtils.readSection(fdZKey, sectionsZKey, 4);
 
-    if (logger) logger.debug("Phase 1: Building A, B, C");
+    const measurement = {};
+    var start = performance.now()
+    // if (logger) logger.debug("Phase 1: Building A, B, C");
     const [buffA_T, buffB_T, buffC_T] = await buildABC1(curve, zkey, buffWitness, buffCoeffs, undefined);
+    var end = performance.now()
+    measurement["Phase 1: Building A, B, C"] = end-start;
 
     const inc = power == Fr.s ? curve.Fr.shift : curve.Fr.w[power+1];
     
-    if (logger) logger.debug("Phase 2: Transform A, B, C");
-
+    // if (logger) logger.debug("Phase 2: Transform A, B, C");
+    start = performance.now()
     // if (logger) logger.debug(`Start IFFT-${zkey.domainSize}`);
     const buffA = await Fr.ifft(buffA_T, "", "", undefined, "IFFT_A");
+    var size = buffA_T.byteLength/Fr.n8;
+    measurement["FFT/IFFT on A"] = size;
     // if (logger) logger.debug(`End IFFT-${zkey.domainSize}`);
-
+    
     const buffAodd = await Fr.batchApplyKey(buffA, Fr.e(1), inc);
 
     // if (logger) logger.debug(`Start FFT-${zkey.domainSize}`);
@@ -80,7 +88,7 @@ export default async function groth16Prove(zkeyFileName, witnessFileName, logger
     const buffB = await Fr.ifft(buffB_T, "", "", undefined, "IFFT_B");
     // if (logger) logger.debug(`End IFFT-${zkey.domainSize}`);
     const buffBodd = await Fr.batchApplyKey(buffB, Fr.e(1), inc);
-
+    measurement["FFT/IFFT on B"] = buffB_T.byteLength/Fr.n8;
     // if (logger) logger.debug(`Start FFT-${zkey.domainSize}`);
     const buffBodd_T = await Fr.fft(buffBodd, "", "", undefined, "FFT_B");
     // if (logger) logger.debug(`End FFT-${zkey.domainSize}`);
@@ -88,45 +96,60 @@ export default async function groth16Prove(zkeyFileName, witnessFileName, logger
     // if (logger) logger.debug(`Start IFFT-${zkey.domainSize}`);
     const buffC = await Fr.ifft(buffC_T, "", "", undefined, "IFFT_C");
     // if (logger) logger.debug(`End IFFT-${zkey.domainSize}`);
-
+    measurement["FFT/IFFT on C"] = buffC_T.byteLength/Fr.n8
     const buffCodd = await Fr.batchApplyKey(buffC, Fr.e(1), inc);
 
     // if (logger) logger.debug(`Start FFT-${zkey.domainSize}`);
     const buffCodd_T = await Fr.fft(buffCodd, "", "", undefined, "FFT_C");
     // if (logger) logger.debug(`End FFT-${zkey.domainSize}`);
+    end = performance.now()
+    measurement["Phase 2: Transform A, B, C"] = end-start;
 
-    if (logger) logger.debug("Phase 3: Join ABC");
+
+    // if (logger) logger.debug("Phase 3: Join ABC");
+    start = performance.now()
     const buffPodd_T = await joinABC(curve, zkey, buffAodd_T, buffBodd_T, buffCodd_T, logger);
+    end = performance.now()
+    measurement["Phase 3: Join ABC"] = end-start;
 
     let proof = {};
 
-    if (logger) logger.debug("Phase 4: Compute A, B, C, H Commitment");
+    start = performance.now()
+    // if (logger) logger.debug("Phase 4: Compute A, B, C, H Commitment");
     const buffBasesA = await binFileUtils.readSection(fdZKey, sectionsZKey, 5);
     // if (logger) logger.debug(`Start MSM-${buffBasesA.byteLength / zkey.n8q / 2}`);
     proof.pi_a = await curve.G1.multiExpAffine(buffBasesA, buffWitness, undefined, "multiexp A");
+    measurement["MSM on A"] = buffBasesA.byteLength / (curve.G1.F.n8*2)
     // if (logger) logger.debug(`End MSM-${buffBasesA.byteLength / zkey.n8q / 2}`);
 
     const buffBasesB1 = await binFileUtils.readSection(fdZKey, sectionsZKey, 6);
     // if (logger) logger.debug(`Start MSM-${buffBasesB1.byteLength / zkey.n8q / 2}`);
     let pib1 = await curve.G1.multiExpAffine(buffBasesB1, buffWitness, undefined, "multiexp B1");
+    measurement["MSM on B1"] = buffBasesB1.byteLength / (curve.G1.F.n8*2)
     // if (logger) logger.debug(`End MSM-${buffBasesB1.byteLength / zkey.n8q / 2}`);
 
     const buffBasesB2 = await binFileUtils.readSection(fdZKey, sectionsZKey, 7);
     // if (logger) logger.debug(`Start MSM-${buffBasesB2.byteLength / zkey.n8q / 2}`);
     proof.pi_b = await curve.G2.multiExpAffine(buffBasesB2, buffWitness, undefined, "multiexp B2");
+    measurement["MSM on B2(G2)"] = buffBasesB2.byteLength / (curve.G2.F.n8*2)
     // if (logger) logger.debug(`End MSM-${buffBasesB2.byteLength / zkey.n8q / 2}`);
 
     const buffBasesC = await binFileUtils.readSection(fdZKey, sectionsZKey, 8);
     // if (logger) logger.debug(`Start MSM-${buffBasesC.byteLength / zkey.n8q / 2}`);
     proof.pi_c = await curve.G1.multiExpAffine(buffBasesC, buffWitness.slice((zkey.nPublic+1)*curve.Fr.n8), undefined, "multiexp C");
     // if (logger) logger.debug(`End MSM-${buffBasesC.byteLength / zkey.n8q / 2}`);
+    measurement["MSM on C"] = buffBasesC.byteLength / (curve.G1.F.n8*2)
 
     const buffBasesH = await binFileUtils.readSection(fdZKey, sectionsZKey, 9);
     // if (logger) logger.debug(`Start MSM-${buffBasesH.byteLength / zkey.n8q / 2}`);
     const resH = await curve.G1.multiExpAffine(buffBasesH, buffPodd_T, undefined, "multiexp H");
+    measurement["MSM on H"] = buffBasesH.byteLength / (curve.G1.F.n8*2)
     // if (logger) logger.debug(`End MSM-${buffBasesH.byteLength / zkey.n8q / 2}`);
+    end = performance.now()
+    measurement["Phase 4: Compute A, B, C, H Commitment"] = end-start;
 
-    if (logger) logger.debug("Phase 5: Compute proof");
+    start = performance.now()
+    // if (logger) logger.debug("Phase 5: Compute proof");
     const r = curve.Fr.random();
     const s = curve.Fr.random();
 
@@ -158,8 +181,14 @@ export default async function groth16Prove(zkeyFileName, witnessFileName, logger
     proof.pi_b = G2.toObject(G2.toAffine(proof.pi_b));
     proof.pi_c = G1.toObject(G1.toAffine(proof.pi_c));
 
-    if (logger) logger.debug("Complete");
-
+    end = performance.now()
+    // if (logger) logger.debug("Complete");
+    measurement["Phase 5: Compute proof"] = end-start;
+    var json = JSON.stringify(measurement);
+    fs.writeFileSync(`breakdown_${size}.json`, json, function(err) {
+        console.log("Writing error");
+    })
+    
     proof.protocol = "groth16";
     proof.curve = curve.name;
 
