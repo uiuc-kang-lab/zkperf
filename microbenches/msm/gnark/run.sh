@@ -42,19 +42,19 @@ cd ..
 mkdir circuit_data
 mv gmt circuit_data/gmt
 cd circuit_data
-./gmt circuit 1024
-./gmt circuit 2048
-./gmt circuit 4096
-./gmt circuit 8192
-./gmt circuit 16384
-./gmt circuit 32768
-./gmt circuit 65536
-./gmt circuit 131072
-./gmt circuit 262144
-./gmt circuit 524288
-./gmt circuit 1048576
-./gmt circuit 2097152
-./gmt circuit 4194304
-./gmt circuit 8388608
+./gmt circuit 1023  
+./gmt circuit 2047
+./gmt circuit 4095
+./gmt circuit 8191
+./gmt circuit 16383
+./gmt circuit 32767
+./gmt circuit 65535
+./gmt circuit 131071
+./gmt circuit 262143
+./gmt circuit 524287
+./gmt circuit 1048575
+./gmt circuit 2097151
+./gmt circuit 4194303
+./gmt circuit 8388607
 mv gmt ../gmt
 cd ..
