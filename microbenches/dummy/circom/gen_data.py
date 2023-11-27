@@ -10,21 +10,23 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     num_constraint = args.num_constraint
+    k = int(math.ceil(math.log2(int(num_constraint))))
+    if 2**k == int(num_constraint):
+        num_constraint = 2**k - 1
 
     with open("dummy_main.circom", "w") as f:
         f.writelines([
             "pragma circom 2.0.0;\n",
             'include "dummy.circom";\n',
-            "component main = Dummy({});\n".format(num_constraint)
+            "component main = Dummy({});\n".format(str(num_constraint))
         ])
 
     with open("input.json", "w") as f:
         json.dump({
-            "a": [1] * int(num_constraint),
+            "a": [1] * num_constraint,
             "out": 1
         }, f)
     
-    k = int(math.ceil(math.log2(int(num_constraint))))
     if k <= 8:
         url = "https://storage.googleapis.com/zkevm/ptau/powersOfTau28_hez_final_08.ptau"
     elif k == 9:
