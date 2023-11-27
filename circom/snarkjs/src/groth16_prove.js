@@ -28,7 +28,7 @@ import * as fs from "fs";
 
 export default async function groth16Prove(zkeyFileName, witnessFileName, logger) {
     // if (logger) logger.debug("Start");
-    
+    var total_start = performance.now()
     const {fd: fdWtns, sections: sectionsWtns} = await binFileUtils.readBinFile(witnessFileName, "wtns", 2, 1<<25, 1<<23);
 
     const wtns = await wtnsUtils.readHeader(fdWtns, sectionsWtns);
@@ -62,6 +62,8 @@ export default async function groth16Prove(zkeyFileName, witnessFileName, logger
     const buffCoeffs = await binFileUtils.readSection(fdZKey, sectionsZKey, 4);
 
     const measurement = {};
+    measurement["Threads"] = curve.tm.concurrency;
+
     var start = performance.now()
     // if (logger) logger.debug("Phase 1: Building A, B, C");
     const [buffA_T, buffB_T, buffC_T] = await buildABC1(curve, zkey, buffWitness, buffCoeffs, undefined);
@@ -188,7 +190,7 @@ export default async function groth16Prove(zkeyFileName, witnessFileName, logger
     fs.writeFileSync(`breakdown_${size}.json`, json, function(err) {
         console.log("Writing error");
     })
-    
+    logger.debug(measurement);
     proof.protocol = "groth16";
     proof.curve = curve.name;
 
@@ -197,6 +199,9 @@ export default async function groth16Prove(zkeyFileName, witnessFileName, logger
 
     proof = stringifyBigInts(proof);
     publicSignals = stringifyBigInts(publicSignals);
+
+    var total_end = performance.now();
+    measurement["Total"] = total_end-total_start;
 
     return {proof, publicSignals};
 }
