@@ -27,8 +27,8 @@ func DummyArithmetic(n int) {
 	scale.SetUint64(uint64(n / 2))
 	start := time.Now()
 	for i := 1; i <= n; i++ {
-		samples[i].SetUint64(uint64(i))
-		scaled_samples[i].Mul(&samples[i], &scale)
+		samples[i-1].SetUint64(uint64(i))
+		scaled_samples[i-1].Mul(&samples[i-1], &scale)
 	}
 	mul_time := time.Since(start)
 
