@@ -3,8 +3,9 @@
 N=1024
 R=12
 
-for i in $(seq 0 1 $R)
+for i in $(seq 0 1 $R)./
 do 
+    N=$(expr "$N" "-" 1)
     echo "Run size: $N"
     python3 gen_data.py $N
     circom dummy_main.circom --r1cs --wasm --sym --c --wat --output .
