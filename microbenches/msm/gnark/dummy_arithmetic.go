@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"runtime"
 	"strconv"
 	"time"
 
@@ -20,7 +19,6 @@ type ArithmeticResult struct {
 
 func DummyArithmetic(n int) {
 	fmt.Println("Sample Size:", n)
-	fmt.Println("No of CPU:", runtime.NumCPU())
 	samples := make([]fr.Element, n)
 	scaled_samples := make([]fr.Element, n)
 	var scale fr.Element
@@ -28,7 +26,7 @@ func DummyArithmetic(n int) {
 	sum.SetZero()
 	scale.SetUint64(uint64(n / 2))
 	start := time.Now()
-	for i := 0; i < n; i++ {
+	for i := 1; i <= n; i++ {
 		samples[i].SetUint64(uint64(i))
 		scaled_samples[i].Mul(&samples[i], &scale)
 	}
