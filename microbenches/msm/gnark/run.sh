@@ -58,3 +58,19 @@ cd circuit_data
 ./gmt circuit 8388607
 mv gmt ../gmt
 cd ..
+
+mkdir arithmetic_data
+mv gmt arithmetic_data/gmt
+cd arithmetic_data
+./gmt arithmetic 65536
+./gmt arithmetic 131072
+./gmt arithmetic 262144
+./gmt arithmetic 524288
+./gmt arithmetic 1048576
+./gmt arithmetic 2097152
+./gmt arithmetic 4194304
+./gmt arithmetic 8388608
+./gmt arithmetic 16777216
+./gmt arithmetic 33554432
+mv gmt ../gmt
+cd ..

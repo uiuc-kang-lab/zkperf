@@ -33,5 +33,7 @@ func main() {
 		DummyMSMAffine(n)
 	} else if step == "fft" {
 		DummyFFT(n)
+	} else if step == "arithmetic" {
+		DummyArithmetic(n)
 	}
 }
