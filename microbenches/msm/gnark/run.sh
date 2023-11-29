@@ -73,3 +73,70 @@ cd arithmetic_data
 ./gmt arithmetic 33554432
 mv gmt ../gmt
 cd ..
+
+# relu script
+
+mkdir relu_data
+./gmt relu 1024 relu_data/
+mv *.json relu_breakdown_1024.json
+mv relu_breakdown_1024.json relu_data/relu_breakdown_1024.json
+./gmt relu 2048
+mv *.json relu_breakdown_2048.json
+mv relu_breakdown_2048.json relu_data/relu_breakdown_2048.json
+./gmt relu 4096
+mv .json relu_breakdown_4096.json
+mv relu_breakdown_4096.json relu_data/relu_breakdown_4096.json
+./gmt relu 8192
+mv .json relu_breakdown_8192.json
+mv relu_breakdown_8192.json relu_data/relu_breakdown_8192.json
+./gmt relu 16384
+mv .json relu_breakdown_16384.json
+mv relu_breakdown_16384.json relu_data/relu_breakdown_16384.json
+./gmt relu 32768
+mv .json relu_breakdown_32768.json
+mv relu_breakdown_32768.json relu_data/relu_breakdown_32768.json
+./gmt relu 65536
+mv .json relu_breakdown_65536.json
+mv relu_breakdown_65536.json relu_data/relu_breakdown_65536.json
+./gmt relu 131072
+mv .json relu_breakdown_131072.json
+mv relu_breakdown_131072.json relu_data/relu_breakdown_131072.json
+./gmt relu 262144
+mv .json relu_breakdown_262144.json
+mv relu_breakdown_262144.json relu_data/relu_breakdown_262144.json
+./gmt relu 524288
+mv .json relu_breakdown_524288.json
+mv relu_breakdown_524288.json relu_data/relu_breakdown_524288.json
+
+
+mkdir relu6_data
+./gmt relu6 1024
+mv *.json relu6_breakdown_1024.json
+mv relu6_breakdown_1024.json relu6_data/relu6_breakdown_1024.json
+./gmt relu6 2048
+mv *.json relu6_breakdown_2048.json
+mv relu6_breakdown_2048.json relu6_data/relu6_breakdown_2048.json
+./gmt relu6 4096
+mv .json relu6_breakdown_4096.json
+mv relu6_breakdown_4096.json relu6_data/relu6_breakdown_4096.json
+./gmt relu6 8192
+mv .json relu6_breakdown_8192.json
+mv relu6_breakdown_8192.json relu6_data/relu6_breakdown_8192.json
+./gmt relu6 16384
+mv .json relu6_breakdown_16384.json
+mv relu6_breakdown_16384.json relu6_data/relu6_breakdown_16384.json
+./gmt relu6 32768
+mv .json relu6_breakdown_32768.json
+mv relu6_breakdown_32768.json relu6_data/relu6_breakdown_32768.json
+./gmt relu6 65536
+mv .json relu6_breakdown_65536.json
+mv relu6_breakdown_65536.json relu6_data/relu6_breakdown_65536.json
+./gmt relu6 131072
+mv .json relu6_breakdown_131072.json
+mv relu6_breakdown_131072.json relu6_data/relu6_breakdown_131072.json
+./gmt relu6 262144
+mv .json relu6_breakdown_262144.json
+mv relu6_breakdown_262144.json relu6_data/relu6_breakdown_262144.json
+./gmt relu6 524288
+mv .json relu6_breakdown_524288.json
+mv relu6_breakdown_524288.json relu6_data/relu6_breakdown_524288.json
