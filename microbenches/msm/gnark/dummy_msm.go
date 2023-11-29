@@ -43,7 +43,7 @@ func DummyMSMAffine(n int) {
 	_, _, _, g2 := bn254.Generators()
 	var result_g2 bn254.G2Affine
 	for i := 0; i < n; i++ {
-		scalars[i].SetRandom()
+		scalars[i].SetUint64(uint64(i))
 		g2_elements[i] = g2
 	}
 	start = time.Now()
