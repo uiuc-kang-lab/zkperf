@@ -78,6 +78,14 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		result := NumConstraints{
+			Framework:     "gnark",
+			Size:          n,
+			Func:          "ReLU6",
+			NbConstraints: cs.GetNbConstraints(),
+		}
+		jsonfile, _ := json.MarshalIndent(result, "", " ")
+		_ = os.WriteFile(path+strconv.Itoa(n)+"_constraint_stats.json", jsonfile, 0644)
 	}
 
 }
