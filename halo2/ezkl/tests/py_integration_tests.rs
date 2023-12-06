@@ -116,7 +116,7 @@ mod py_tests {
         }
     }
 
-    const TESTS: [&str; 34] = [
+    const TESTS: [&str; 37] = [
         "mnist_gan.ipynb",
         // "mnist_vae.ipynb",
         "keras_simple_demo.ipynb",
@@ -152,6 +152,9 @@ mod py_tests {
         "sklearn_mlp.ipynb",
         "generalized_inverse.ipynb",
         "mnist_classifier.ipynb",
+        "world_rotation.ipynb",
+        "tictactoe_binary_classification.ipynb",
+        "tictactoe_autoencoder.ipynb",
     ];
 
     macro_rules! test_func {
@@ -164,7 +167,7 @@ mod py_tests {
             use super::*;
 
 
-            seq!(N in 0..=33 {
+            seq!(N in 0..=36 {
 
             #(#[test_case(TESTS[N])])*
             fn run_notebook_(test: &str) {
@@ -181,6 +184,7 @@ mod py_tests {
                 test_dir.close().unwrap();
                 anvil_child.kill().unwrap();
             }
+            });
             #[test]
             fn voice_notebook_() {
                 crate::py_tests::init_binary();
@@ -204,7 +208,7 @@ mod py_tests {
                 run_notebook(path, "nbeats_timeseries_forecasting.ipynb");
                 test_dir.close().unwrap();
             }
-            });
+
 
     }
     };

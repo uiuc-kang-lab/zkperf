@@ -32,6 +32,14 @@ pub enum VarTensor {
 
 impl VarTensor {
     ///
+    pub fn is_advice(&self) -> bool {
+        match self {
+            VarTensor::Advice { .. } => true,
+            _ => false,
+        }
+    }
+
+    ///
     pub fn max_rows<F: PrimeField>(cs: &ConstraintSystem<F>, logrows: usize) -> usize {
         let base = 2u32;
         base.pow(logrows as u32) as usize - cs.blinding_factors() - 1
@@ -57,7 +65,7 @@ impl VarTensor {
 
         if modulo > 1 {
             warn!(
-                "will be using column duplication for {} unblinded advice columns",
+                "using column duplication for {} unblinded advice blocks",
                 modulo - 1
             );
         }
@@ -99,10 +107,7 @@ impl VarTensor {
         let mut advices = vec![];
 
         if modulo > 1 {
-            warn!(
-                "will be using column duplication for {} advice columns",
-                modulo - 1
-            );
+            warn!("using column duplication for {} advice blocks", modulo - 1);
         }
 
         for _ in 0..modulo {
@@ -131,11 +136,11 @@ impl VarTensor {
         cs: &mut ConstraintSystem<F>,
         logrows: usize,
         num_constants: usize,
-        uses_modules: bool,
+        module_requires_fixed: bool,
     ) -> usize {
-        if num_constants == 0 && !uses_modules {
+        if num_constants == 0 && !module_requires_fixed {
             return 0;
-        } else if num_constants == 0 && uses_modules {
+        } else if num_constants == 0 && module_requires_fixed {
             let col = cs.fixed_column();
             cs.enable_constant(col);
             return 1;
@@ -148,10 +153,7 @@ impl VarTensor {
         modulo = (num_constants + modulo) / max_rows + 1;
 
         if modulo > 1 {
-            warn!(
-                "will be using column duplication for {} fixed columns",
-                modulo - 1
-            );
+            warn!("using column duplication for {} fixed columns", modulo - 1);
         }
 
         for _ in 0..modulo {
@@ -293,12 +295,14 @@ impl VarTensor {
         constant: F,
     ) -> Result<AssignedCell<F, F>, halo2_proofs::plonk::Error> {
         let (x, y, z) = self.cartesian_coord(offset);
-
         match &self {
             VarTensor::Advice { inner: advices, .. } => {
                 region.assign_advice_from_constant(|| "constant", advices[x][y], z, constant)
             }
-            _ => panic!(),
+            _ => {
+                error!("VarTensor was not initialized");
+                Err(halo2_proofs::plonk::Error::Synthesis)
+            }
         }
     }
 
@@ -320,10 +324,7 @@ impl VarTensor {
                     if omissions.contains(&coord) {
                         return Ok(k);
                     }
-                    let (x, y, z) = self.cartesian_coord(offset + assigned_coord);
-                    let cell =
-                        self.assign_value(region, offset, k.clone(), x, y, z, assigned_coord)?;
-
+                    let cell = self.assign_value(region, offset, k.clone(), assigned_coord)?;
                     assigned_coord += 1;
 
                     match k {
@@ -384,9 +385,7 @@ impl VarTensor {
             },
             ValTensor::Value { inner: v, .. } => Ok(v
                 .enum_map(|coord, k| {
-                    let (x, y, z) = self.cartesian_coord(offset + coord);
-                    let cell = self.assign_value(region, offset, k.clone(), x, y, z, coord)?;
-
+                    let cell = self.assign_value(region, offset, k.clone(), coord)?;
                     match k {
                         ValType::Constant(f) => Ok::<ValType<F>, halo2_proofs::plonk::Error>(
                             ValType::AssignedConstant(cell, f),
@@ -456,7 +455,7 @@ impl VarTensor {
         values: &ValTensor<F>,
         check_mode: &CheckMode,
         single_inner_col: bool,
-    ) -> Result<(ValTensor<F>, usize), halo2_proofs::plonk::Error> {
+    ) -> Result<(ValTensor<F>, usize, usize), halo2_proofs::plonk::Error> {
         let mut prev_cell = None;
 
         match values {
@@ -498,7 +497,7 @@ impl VarTensor {
                         assert_eq!(Into::<i32>::into(k.clone()), Into::<i32>::into(v[coord - 1].clone()));
                     };
 
-                    let cell = self.assign_value(region, offset, k.clone(), x, y, z, coord * step)?;
+                    let cell = self.assign_value(region, offset, k.clone(), coord * step)?;
 
                     if single_inner_col {
                     if z == 0 {
@@ -527,6 +526,7 @@ impl VarTensor {
 
                 })?.into()};
                 let total_used_len = res.len();
+                let total_constants = res.num_constants();
                 res.remove_every_n(duplication_freq, num_repeats, duplication_offset).unwrap();
 
                 res.reshape(dims).unwrap();
@@ -545,7 +545,7 @@ impl VarTensor {
                     )};
                 }
 
-                Ok((res, total_used_len))
+                Ok((res, total_used_len, total_constants))
             }
         }
     }
@@ -555,11 +555,9 @@ impl VarTensor {
         region: &mut Region<F>,
         offset: usize,
         k: ValType<F>,
-        x: usize,
-        y: usize,
-        z: usize,
         coord: usize,
     ) -> Result<AssignedCell<F, F>, halo2_proofs::plonk::Error> {
+        let (x, y, z) = self.cartesian_coord(offset + coord);
         match k {
             ValType::Value(v) => match &self {
                 VarTensor::Advice { inner: advices, .. } => {

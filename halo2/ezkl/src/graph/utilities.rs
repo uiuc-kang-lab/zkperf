@@ -34,11 +34,11 @@ use tract_onnx::tract_core::ops::{
 use tract_onnx::tract_hir::{
     internal::DimLike,
     ops::array::{Pad, PadMode, TypedConcat},
-    ops::cnn::{ConvUnary, MaxPool, PoolSpec, SumPool},
+    ops::cnn::{ConvUnary, PoolSpec},
     ops::konst::Const,
     ops::nn::DataFormat,
     tract_core::ops::cast::Cast,
-    tract_core::ops::cnn::{conv::KernelFormat, PaddingSpec},
+    tract_core::ops::cnn::{conv::KernelFormat, MaxPool, PaddingSpec, SumPool},
 };
 
 // Warning: currently ignores stride information
@@ -190,9 +190,9 @@ fn extract_tensor_value(
 
             const_value = Tensor::<f32>::new(Some(&cast?), &dims)?;
         }
-        _ => todo!("unsupported type"),
+        _ => return Err("unsupported data type".into()),
     }
-    const_value.reshape(&dims);
+    const_value.reshape(&dims)?;
 
     Ok(const_value)
 }
@@ -235,6 +235,39 @@ pub fn new_op_from_onnx(
     debug!("Loading node: {:?}", node);
     let mut deleted_indices = vec![];
     let node = match node.op().name().as_ref() {
+        "Range" => {
+            let mut input_ops = vec![];
+
+            for (i, input) in inputs.iter_mut().enumerate() {
+                if !input.opkind().is_constant() {
+                    return Err("Range only supports constant inputs in a zk circuit".into());
+                } else {
+                    input.decrement_use();
+                    deleted_indices.push(i);
+                    input_ops.push(input.opkind().clone());
+                }
+            }
+
+            assert_eq!(input_ops.len(), 3, "Range requires 3 inputs");
+            let input_ops = input_ops
+                .iter()
+                .map(|x| x.get_constant().ok_or("Range requires constant inputs"))
+                .collect::<Result<Vec<_>, _>>()?;
+
+            let start = input_ops[0].raw_values.map(|x| x as usize)[0];
+            let end = input_ops[1].raw_values.map(|x| x as usize)[0];
+            let delta = input_ops[2].raw_values.map(|x| x as usize)[0];
+
+            let range = (start..end).step_by(delta).collect::<Vec<_>>();
+            let raw_value = range.iter().map(|x| *x as f32).collect::<Tensor<_>>();
+            // Quantize the raw value (integers)
+            let quantized_value = quantize_tensor(raw_value.clone(), 0, &Visibility::Fixed)?;
+
+            let c = crate::circuit::ops::Constant::new(quantized_value, raw_value);
+            // Create a constant op
+            SupportedOp::Constant(c)
+        }
+
         "Gather" => {
             if inputs.len() != 2 {
                 return Err(Box::new(GraphError::InvalidDims(idx, "gather".to_string())));
@@ -383,7 +416,13 @@ pub fn new_op_from_onnx(
                         destination,
                     })
                 }
-                _ => todo!(),
+
+                _ => {
+                    return Err(Box::new(GraphError::OpMismatch(
+                        idx,
+                        "MoveAxis".to_string(),
+                    )))
+                }
             }
         }
         "Concat" | "InferenceConcat" => {
@@ -418,7 +457,7 @@ pub fn new_op_from_onnx(
                 | DatumType::U32
                 | DatumType::U64 => 0,
                 DatumType::F16 | DatumType::F32 | DatumType::F64 => scales.params,
-                _ => todo!("unsupported type"),
+                _ => return Err(Box::new(GraphError::UnsupportedDataType)),
             };
 
             // Quantize the raw value
@@ -513,7 +552,7 @@ pub fn new_op_from_onnx(
                 if c.len() == 1 {
                     c[0]
                 } else {
-                    todo!()
+                    return Err(Box::new(GraphError::InvalidDims(idx, "max".to_string())));
                 }
             } else {
                 return Err(Box::new(GraphError::OpMismatch(idx, "Max".to_string())));
@@ -528,12 +567,12 @@ pub fn new_op_from_onnx(
                     SupportedOp::Nonlinear(LookupOp::ReLU)
                 } else {
                     SupportedOp::Nonlinear(LookupOp::Max {
-                        scales: (1, 1),
+                        scale: scale_to_multiplier(inputs[0].out_scales()[0]).into(),
                         a: crate::circuit::utils::F32(unit),
                     })
                 }
             } else {
-                todo!()
+                return Err(Box::new(GraphError::InvalidDims(idx, "max".to_string())));
             }
         }
         "Min" => {
@@ -557,7 +596,7 @@ pub fn new_op_from_onnx(
                 if c.len() == 1 {
                     c[0]
                 } else {
-                    todo!()
+                    return Err(Box::new(GraphError::InvalidDims(idx, "min".to_string())));
                 }
             } else {
                 return Err(Box::new(GraphError::OpMismatch(idx, "Min".to_string())));
@@ -568,12 +607,13 @@ pub fn new_op_from_onnx(
                     node.decrement_use();
                     deleted_indices.push(const_idx);
                 }
+
                 SupportedOp::Nonlinear(LookupOp::Min {
-                    scales: (1, 1),
+                    scale: scale_to_multiplier(inputs[0].out_scales()[0]).into(),
                     a: crate::circuit::utils::F32(unit),
                 })
             } else {
-                todo!()
+                return Err(Box::new(GraphError::InvalidDims(idx, "min".to_string())));
             }
         }
         "Recip" => {
@@ -610,7 +650,7 @@ pub fn new_op_from_onnx(
             })
         }
         "Scan" => {
-            panic!("should never reach here")
+            return Err("scan should never be analyzed explicitly".into());
         }
         "QuantizeLinearU8" | "DequantizeLinearF32" => SupportedOp::Linear(PolyOp::Identity),
         "Abs" => SupportedOp::Nonlinear(LookupOp::Abs),
@@ -684,7 +724,7 @@ pub fn new_op_from_onnx(
                 DatumType::F16 => (scales.input, InputType::F16),
                 DatumType::F32 => (scales.input, InputType::F32),
                 DatumType::F64 => (scales.input, InputType::F64),
-                _ => todo!(),
+                _ => return Err(Box::new(GraphError::UnsupportedDataType)),
             };
             SupportedOp::Input(crate::circuit::ops::Input { scale, datum_type })
         }
@@ -741,7 +781,7 @@ pub fn new_op_from_onnx(
                 DatumType::F16 | DatumType::F32 | DatumType::F64 => {
                     SupportedOp::Linear(PolyOp::Identity)
                 }
-                _ => todo!("unsupported type"),
+                _ => return Err(Box::new(GraphError::UnsupportedDataType)),
             }
         }
         "Add" => SupportedOp::Linear(PolyOp::Add),
@@ -756,7 +796,9 @@ pub fn new_op_from_onnx(
                 .map(|(i, _)| i)
                 .collect::<Vec<_>>();
 
-            assert!(const_idx.len() <= 1);
+            if !(const_idx.len() <= 1) {
+                return Err(Box::new(GraphError::InvalidDims(idx, "mul".to_string())));
+            }
 
             if const_idx.len() == 1 {
                 let const_idx = const_idx[0];
@@ -778,14 +820,17 @@ pub fn new_op_from_onnx(
             if inputs.len() == 2 {
                 SupportedOp::Hybrid(HybridOp::Less)
             } else {
-                todo!()
+                return Err(Box::new(GraphError::InvalidDims(idx, "less".to_string())));
             }
         }
         "LessEqual" => {
             if inputs.len() == 2 {
                 SupportedOp::Hybrid(HybridOp::LessEqual)
             } else {
-                todo!()
+                return Err(Box::new(GraphError::InvalidDims(
+                    idx,
+                    "less equal".to_string(),
+                )));
             }
         }
         "Greater" => {
@@ -793,7 +838,10 @@ pub fn new_op_from_onnx(
             if inputs.len() == 2 {
                 SupportedOp::Hybrid(HybridOp::Greater)
             } else {
-                todo!()
+                return Err(Box::new(GraphError::InvalidDims(
+                    idx,
+                    "greater".to_string(),
+                )));
             }
         }
         "GreaterEqual" => {
@@ -801,7 +849,10 @@ pub fn new_op_from_onnx(
             if inputs.len() == 2 {
                 SupportedOp::Hybrid(HybridOp::GreaterEqual)
             } else {
-                todo!()
+                return Err(Box::new(GraphError::InvalidDims(
+                    idx,
+                    "greater equal".to_string(),
+                )));
             }
         }
         "EinSum" => {
@@ -851,7 +902,10 @@ pub fn new_op_from_onnx(
                 )));
             }
 
-            let stride = pool_spec.strides.clone().unwrap();
+            let stride = pool_spec
+                .strides
+                .clone()
+                .ok_or(GraphError::MissingParams("stride".to_string()))?;
             let padding = match &pool_spec.padding {
                 PaddingSpec::Explicit(b, a) => [(b[0], b[1]), (a[0], a[1])],
                 PaddingSpec::ExplicitOnnxPool(b, a, _) => [(b[0], b[1]), (a[0], a[1])],
@@ -1148,7 +1202,10 @@ pub fn new_op_from_onnx(
                 )));
             }
 
-            let stride = pool_spec.strides.clone().unwrap();
+            let stride = pool_spec
+                .strides
+                .clone()
+                .ok_or(GraphError::MissingParams("stride".to_string()))?;
             let padding = match &pool_spec.padding {
                 PaddingSpec::Explicit(b, a) => [(b[0], b[1]), (a[0], a[1])],
                 PaddingSpec::ExplicitOnnxPool(b, a, _) => [(b[0], b[1]), (a[0], a[1])],
@@ -1218,7 +1275,10 @@ pub fn new_op_from_onnx(
         "RmAxis" | "Reshape" | "AddAxis" => {
             // Extract the slope layer hyperparams
             let shapes = node_output_shapes(&node)?;
-            let mut output_shape = shapes[0].as_ref().unwrap().clone();
+            let mut output_shape = shapes[0]
+                .as_ref()
+                .ok_or(GraphError::InvalidDims(idx, "reshape".to_string()))?
+                .clone();
             if output_shape.is_empty() {
                 output_shape = vec![1];
             }
@@ -1329,7 +1389,7 @@ pub fn homogenize_input_scales(
 
     let mut multipliers: Vec<u128> = vec![1; input_scales.len()];
 
-    let max_scale = input_scales.iter().max().unwrap();
+    let max_scale = input_scales.iter().max().ok_or("no max scale")?;
     let _ = input_scales
         .iter()
         .enumerate()
@@ -1374,7 +1434,7 @@ pub mod tests {
 
         tensor.set_visibility(&Visibility::Public);
 
-        let flattened: ValTensor<Fp> = tensor.into();
+        let flattened: ValTensor<Fp> = tensor.try_into().unwrap();
 
         assert_eq!(flattened.len(), 30);
 

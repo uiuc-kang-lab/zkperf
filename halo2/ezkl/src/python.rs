@@ -1,4 +1,5 @@
 use crate::circuit::modules::elgamal::{ElGamalCipher, ElGamalVariables};
+use crate::circuit::modules::kzg::KZGChip;
 use crate::circuit::modules::poseidon::{
     spec::{PoseidonSpec, POSEIDON_RATE, POSEIDON_WIDTH},
     PoseidonChip,
@@ -13,7 +14,8 @@ use crate::graph::{
 };
 use crate::pfsys::evm::aggregation::AggregationCircuit;
 use crate::pfsys::{
-    load_pk, save_params, load_vk, save_vk, srs::gen_srs as ezkl_gen_srs, srs::load_srs, ProofType, Snark, TranscriptType,
+    load_pk, load_vk, save_params, save_vk, srs::gen_srs as ezkl_gen_srs, srs::load_srs, ProofType,
+    Snark, TranscriptType,
 };
 use crate::RunArgs;
 use ethers::types::H160;
@@ -29,9 +31,29 @@ use snark_verifier::util::arithmetic::PrimeField;
 use std::str::FromStr;
 use std::{fs::File, path::PathBuf};
 use tokio::runtime::Runtime;
-use crate::circuit::modules::kzg::KZGChip;
+use crate::graph::TestDataSource;
 
 type PyFelt = [u64; 4];
+
+#[pyclass]
+#[derive(Debug, Clone)]
+enum PyTestDataSource {
+    /// The data is loaded from a file
+    File,
+    /// The data is loaded from the chain
+    OnChain,
+}
+
+impl From<PyTestDataSource> for TestDataSource {
+    fn from(py_test_data_source: PyTestDataSource) -> Self {
+        match py_test_data_source {
+            PyTestDataSource::File => TestDataSource::File,
+            PyTestDataSource::OnChain => TestDataSource::OnChain,
+        }
+    }
+}
+
+
 
 /// pyclass containing the struct used for G1
 #[pyclass]
@@ -273,7 +295,7 @@ impl PyRunArgs {
             input_scale: 7,
             param_scale: 7,
             scale_rebase_multiplier: 1,
-            num_inner_cols: 1,
+            num_inner_cols: 2,
             lookup_range: (-32768, 32768),
             logrows: 17,
             input_visibility: Visibility::Private,
@@ -448,15 +470,19 @@ fn poseidon_hash(message: Vec<PyFelt>) -> PyResult<Vec<PyFelt>> {
     Ok(hash)
 }
 
-
 /// Generate a kzg commitment.
 #[pyfunction(signature = (
     message,
-    srs_path, 
-    vk_path, 
+    srs_path,
+    vk_path,
     settings_path
     ))]
-fn kzg_commit(message: Vec<PyFelt>, srs_path: PathBuf, vk_path: PathBuf, settings_path: PathBuf) -> PyResult<Vec<PyG1Affine>> {
+fn kzg_commit(
+    message: Vec<PyFelt>,
+    srs_path: PathBuf,
+    vk_path: PathBuf,
+    settings_path: PathBuf,
+) -> PyResult<Vec<PyG1Affine>> {
     let message: Vec<Fr> = message
         .iter()
         .map(|x| crate::pfsys::vecu64_to_field_montgomery::<Fr>(&x))
@@ -471,29 +497,27 @@ fn kzg_commit(message: Vec<PyFelt>, srs_path: PathBuf, vk_path: PathBuf, setting
     let vk = load_vk::<KZGCommitmentScheme<Bn256>, Fr, GraphCircuit>(vk_path, settings)
         .map_err(|_| PyIOError::new_err("Failed to load vk"))?;
 
-    let output = KZGChip::commit(message, vk.cs().degree() as u32, (vk.cs().blinding_factors() + 1) as u32, &srs);
+    let output = KZGChip::commit(
+        message,
+        vk.cs().degree() as u32,
+        (vk.cs().blinding_factors() + 1) as u32,
+        &srs,
+    );
 
-  
-    Ok(output
-        .iter()
-        .map(|x| (*x).into())
-        .collect::<Vec<_>>())
+    Ok(output.iter().map(|x| (*x).into()).collect::<Vec<_>>())
 }
 
 /// Swap the commitments in a proof
 #[pyfunction(signature = (
     proof_path,
-    witness_path, 
+    witness_path,
     ))]
 fn swap_proof_commitments(proof_path: PathBuf, witness_path: PathBuf) -> PyResult<()> {
-
     crate::execute::swap_proof_commitments(proof_path, witness_path)
         .map_err(|_| PyIOError::new_err("Failed to swap commitments"))?;
-    
+
     Ok(())
 }
-
-
 
 /// Encrypt using elgamal
 #[pyfunction(signature = (
@@ -677,27 +701,22 @@ fn gen_settings(
     max_logrows = None,
 ))]
 fn calibrate_settings(
-    py: Python,
     data: PathBuf,
     model: PathBuf,
     settings: PathBuf,
     target: Option<CalibrationTarget>,
     scales: Option<Vec<crate::Scale>>,
     max_logrows: Option<u32>,
-) -> PyResult<&pyo3::PyAny> {
+) -> Result<bool, PyErr> {
     let target = target.unwrap_or(CalibrationTarget::Resources {
         col_overflow: false,
     });
+    crate::execute::calibrate(model, data, settings, target, scales, max_logrows).map_err(|e| {
+        let err_str = format!("Failed to calibrate settings: {}", e);
+        PyRuntimeError::new_err(err_str)
+    })?;
 
-    pyo3_asyncio::tokio::future_into_py(py, async move {
-        crate::execute::calibrate(model, data, settings, target, scales, max_logrows)
-            .await
-            .map_err(|e| {
-                let err_str = format!("Failed to calibrate settings: {}", e);
-                PyRuntimeError::new_err(err_str)
-            })?;
-        Ok(true)
-    })
+    Ok(true)
 }
 
 /// runs the forward pass operation
@@ -705,13 +724,21 @@ fn calibrate_settings(
     data,
     model,
     output,
-    vk_path=None, 
+    vk_path=None,
     srs_path=None,
 ))]
-fn gen_witness(data: PathBuf, model: PathBuf, output: Option<PathBuf>, vk_path: Option<PathBuf>, srs_path: Option<PathBuf>) -> PyResult<PyObject> {
+fn gen_witness(
+    data: PathBuf,
+    model: PathBuf,
+    output: Option<PathBuf>,
+    vk_path: Option<PathBuf>,
+    srs_path: Option<PathBuf>,
+) -> PyResult<PyObject> {
     let output = Runtime::new()
         .unwrap()
-        .block_on(crate::execute::gen_witness(model, data, output, vk_path, srs_path))
+        .block_on(crate::execute::gen_witness(
+            model, data, output, vk_path, srs_path,
+        ))
         .map_err(|e| {
             let err_str = format!("Failed to run generate witness: {}", e);
             PyRuntimeError::new_err(err_str)
@@ -725,14 +752,10 @@ fn gen_witness(data: PathBuf, model: PathBuf, output: Option<PathBuf>, vk_path: 
     model,
 ))]
 fn mock(witness: PathBuf, model: PathBuf) -> PyResult<bool> {
-    Runtime::new()
-        .unwrap()
-        .block_on(crate::execute::mock(model, witness))
-        .map_err(|e| {
-            let err_str = format!("Failed to run mock: {}", e);
-            PyRuntimeError::new_err(err_str)
-        })?;
-
+    crate::execute::mock(model, witness).map_err(|e| {
+        let err_str = format!("Failed to run mock: {}", e);
+        PyRuntimeError::new_err(err_str)
+    })?;
     Ok(true)
 }
 
@@ -742,7 +765,11 @@ fn mock(witness: PathBuf, model: PathBuf) -> PyResult<bool> {
     logrows,
     split_proofs = false,
 ))]
-fn mock_aggregate(aggregation_snarks: Vec<PathBuf>, logrows: u32, split_proofs: bool) -> PyResult<bool> {
+fn mock_aggregate(
+    aggregation_snarks: Vec<PathBuf>,
+    logrows: u32,
+    split_proofs: bool,
+) -> PyResult<bool> {
     crate::execute::mock_aggregate(aggregation_snarks, logrows, split_proofs).map_err(|e| {
         let err_str = format!("Failed to run mock: {}", e);
         PyRuntimeError::new_err(err_str)
@@ -791,21 +818,19 @@ fn prove(
     srs_path: PathBuf,
     proof_type: ProofType,
 ) -> PyResult<PyObject> {
-    let snark = Runtime::new()
-        .unwrap()
-        .block_on(crate::execute::prove(
-            witness,
-            model,
-            pk_path,
-            proof_path,
-            srs_path,
-            proof_type,
-            CheckMode::UNSAFE,
-        ))
-        .map_err(|e| {
-            let err_str = format!("Failed to run prove: {}", e);
-            PyRuntimeError::new_err(err_str)
-        })?;
+    let snark = crate::execute::prove(
+        witness,
+        model,
+        pk_path,
+        proof_path,
+        srs_path,
+        proof_type,
+        CheckMode::UNSAFE,
+    )
+    .map_err(|e| {
+        let err_str = format!("Failed to run prove: {}", e);
+        PyRuntimeError::new_err(err_str)
+    })?;
 
     Python::with_gil(|py| Ok(snark.to_object(py)))
 }
@@ -847,12 +872,18 @@ fn setup_aggregate(
     logrows: u32,
     split_proofs: bool,
 ) -> Result<bool, PyErr> {
-    crate::execute::setup_aggregate(sample_snarks, vk_path, pk_path, srs_path, logrows, split_proofs).map_err(
-        |e| {
-            let err_str = format!("Failed to setup aggregate: {}", e);
-            PyRuntimeError::new_err(err_str)
-        },
-    )?;
+    crate::execute::setup_aggregate(
+        sample_snarks,
+        vk_path,
+        pk_path,
+        srs_path,
+        logrows,
+        split_proofs,
+    )
+    .map_err(|e| {
+        let err_str = format!("Failed to setup aggregate: {}", e);
+        PyRuntimeError::new_err(err_str)
+    })?;
 
     Ok(true)
 }
@@ -991,6 +1022,40 @@ fn create_evm_data_attestation(
     })?;
 
     Ok(true)
+}
+
+#[pyfunction(signature = (
+    data_path,
+    compiled_circuit_path,
+    test_data, 
+    input_source,
+    output_source,
+    rpc_url=None,
+))]
+fn setup_test_evm_witness(
+    data_path: PathBuf,
+    compiled_circuit_path: PathBuf,
+    test_data: PathBuf,
+    input_source: PyTestDataSource,
+    output_source: PyTestDataSource,
+    rpc_url: Option<String>,
+) -> Result<bool, PyErr> {
+    Runtime::new()
+    .unwrap()
+    .block_on(crate::execute::setup_test_evm_witness(
+        data_path,
+        compiled_circuit_path,
+        test_data,
+        rpc_url,
+        input_source.into(),
+        output_source.into(),
+    )).map_err(|e| {
+        let err_str = format!("Failed to run setup_test_evm_witness: {}", e);
+        PyRuntimeError::new_err(err_str)
+    })?;
+
+Ok(true)
+
 }
 
 #[pyfunction(signature = (
@@ -1142,12 +1207,13 @@ fn print_proof_hex(proof_path: PathBuf) -> Result<String, PyErr> {
 }
 
 /// deploys a model to the hub
-#[pyfunction(signature = (model, input, name, organization_id, target=None, py_run_args=None, url=None))]
+#[pyfunction(signature = (model, input, name, organization_id, api_key=None,target=None, py_run_args=None, url=None))]
 fn create_hub_artifact(
     model: PathBuf,
     input: PathBuf,
     name: String,
     organization_id: String,
+    api_key: Option<&str>,
     target: Option<CalibrationTarget>,
     py_run_args: Option<PyRunArgs>,
     url: Option<&str>,
@@ -1159,6 +1225,7 @@ fn create_hub_artifact(
     let output = Runtime::new()
         .unwrap()
         .block_on(crate::execute::deploy_model(
+            api_key,
             url,
             &model,
             &input,
@@ -1174,17 +1241,30 @@ fn create_hub_artifact(
     Python::with_gil(|py| Ok(output.to_object(py)))
 }
 
+/// gets a deployed model from the hub
+#[pyfunction(signature = (id, api_key=None, url=None))]
+fn get_hub_artifact(id: &str, api_key: Option<&str>, url: Option<&str>) -> PyResult<PyObject> {
+    let output = Runtime::new()
+        .unwrap()
+        .block_on(crate::execute::get_deployed_model(api_key, url, &id))
+        .map_err(|e| {
+            let err_str = format!("Failed to get model from hub: {}", e);
+            PyRuntimeError::new_err(err_str)
+        })?;
+    Python::with_gil(|py| Ok(output.to_object(py)))
+}
+
 /// Generate a proof on the hub.
-#[pyfunction(signature = (id, input, url=None, transcript_type=None))]
+#[pyfunction(signature = ( id, input,api_key=None, url=None))]
 fn prove_hub(
     id: &str,
     input: PathBuf,
+    api_key: Option<&str>,
     url: Option<&str>,
-    transcript_type: Option<&str>,
 ) -> PyResult<PyObject> {
     let output = Runtime::new()
         .unwrap()
-        .block_on(crate::execute::prove_hub(url, id, &input, transcript_type))
+        .block_on(crate::execute::prove_hub(api_key, url, id, &input))
         .map_err(|e| {
             let err_str = format!("Failed to generate proof on hub: {}", e);
             PyRuntimeError::new_err(err_str)
@@ -1193,11 +1273,11 @@ fn prove_hub(
 }
 
 /// Fetches proof from hub
-#[pyfunction(signature = (id, url=None))]
-fn get_hub_proof(id: &str, url: Option<&str>) -> PyResult<PyObject> {
+#[pyfunction(signature = ( id, api_key=None,url=None))]
+fn get_hub_proof(id: &str, api_key: Option<&str>, url: Option<&str>) -> PyResult<PyObject> {
     let output = Runtime::new()
         .unwrap()
-        .block_on(crate::execute::get_hub_proof(url, id))
+        .block_on(crate::execute::get_hub_proof(api_key, url, id))
         .map_err(|e| {
             let err_str = format!("Failed to get proof from hub: {}", e);
             PyRuntimeError::new_err(err_str)
@@ -1206,11 +1286,15 @@ fn get_hub_proof(id: &str, url: Option<&str>) -> PyResult<PyObject> {
 }
 
 /// Gets hub credentials
-#[pyfunction(signature = (username, url=None))]
-fn get_hub_credentials(username: &str, url: Option<&str>) -> PyResult<PyObject> {
+#[pyfunction(signature = (username,api_key=None, url=None))]
+fn get_hub_credentials(
+    username: &str,
+    api_key: Option<&str>,
+    url: Option<&str>,
+) -> PyResult<PyObject> {
     let output = Runtime::new()
         .unwrap()
-        .block_on(crate::execute::get_hub_credentials(url, username))
+        .block_on(crate::execute::get_hub_credentials(api_key, url, username))
         .map_err(|e| {
             let err_str = format!("Failed to get hub credentials: {}", e);
             PyRuntimeError::new_err(err_str)
@@ -1228,6 +1312,7 @@ fn ezkl(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyElGamalVariables>()?;
     m.add_class::<PyG1Affine>()?;
     m.add_class::<PyG1>()?;
+    m.add_class::<PyTestDataSource>()?;
     m.add_function(wrap_pyfunction!(vecu64_to_felt, m)?)?;
     m.add_function(wrap_pyfunction!(vecu64_to_int, m)?)?;
     m.add_function(wrap_pyfunction!(vecu64_to_float, m)?)?;
@@ -1261,9 +1346,11 @@ fn ezkl(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(deploy_da_evm, m)?)?;
     m.add_function(wrap_pyfunction!(verify_evm, m)?)?;
     m.add_function(wrap_pyfunction!(print_proof_hex, m)?)?;
+    m.add_function(wrap_pyfunction!(setup_test_evm_witness, m)?)?;
     m.add_function(wrap_pyfunction!(create_evm_verifier_aggr, m)?)?;
     m.add_function(wrap_pyfunction!(create_evm_data_attestation, m)?)?;
     m.add_function(wrap_pyfunction!(create_hub_artifact, m)?)?;
+    m.add_function(wrap_pyfunction!(get_hub_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(prove_hub, m)?)?;
     m.add_function(wrap_pyfunction!(get_hub_proof, m)?)?;
     m.add_function(wrap_pyfunction!(get_hub_credentials, m)?)?;

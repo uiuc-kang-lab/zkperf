@@ -14,6 +14,7 @@ use pyo3::ToPyObject;
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::io::Read;
+use std::panic::UnwindSafe;
 #[cfg(not(target_arch = "wasm32"))]
 use std::thread;
 #[cfg(not(target_arch = "wasm32"))]
@@ -321,7 +322,7 @@ impl OnChainSource {
         let mut inputs: Vec<Tensor<Fp>> = vec![];
         for (input, shape) in [quantized_evm_inputs].iter().zip(shapes) {
             let mut t: Tensor<Fp> = input.iter().cloned().collect();
-            t.reshape(&shape);
+            t.reshape(&shape)?;
             inputs.push(t);
         }
 
@@ -441,6 +442,8 @@ pub struct GraphData {
     pub output_data: Option<DataSource>,
 }
 
+impl UnwindSafe for GraphData {}
+
 impl GraphData {
     ///
     pub fn new(input_data: DataSource) -> Self {
@@ -480,7 +483,12 @@ impl GraphData {
             GraphData {
                 input_data: DataSource::OnChain(_),
                 output_data: _,
-            } => todo!("on-chain data batching not implemented yet"),
+            } => {
+                return Err(Box::new(GraphError::InvalidDims(
+                    0,
+                    "on-chain data cannot be split into batches".to_string(),
+                )))
+            }
             #[cfg(not(target_arch = "wasm32"))]
             GraphData {
                 input_data: DataSource::DB(data),
@@ -488,9 +496,10 @@ impl GraphData {
             } => data.fetch_and_format_as_file()?,
         };
 
-        for (i, input) in iterable.iter().enumerate() {
+        for (i, shape) in input_shapes.iter().enumerate() {
             // ensure the input is evenly divisible by batch_size
-            let input_size = input_shapes[i].clone().iter().product::<usize>();
+            let input_size = shape.clone().iter().product::<usize>();
+            let input = &iterable[i];
             if input.len() % input_size != 0 {
                 return Err(Box::new(GraphError::InvalidDims(
                     0,
@@ -498,19 +507,24 @@ impl GraphData {
                         .to_string(),
                 )));
             }
-            let input_size = input_shapes[i].clone().iter().product::<usize>();
             let mut batches = vec![];
             for batch in input.chunks(input_size) {
                 batches.push(batch.to_vec());
             }
             batched_inputs.push(batches);
         }
+
         // now merge all the batches for each input into a vector of batches
         // first assert each input has the same number of batches
-        let num_batches = batched_inputs[0].len();
-        for input in batched_inputs.iter() {
-            assert_eq!(input.len(), num_batches);
-        }
+        let num_batches = if batched_inputs.is_empty() {
+            0
+        } else {
+            let num_batches = batched_inputs[0].len();
+            for input in batched_inputs.iter() {
+                assert_eq!(input.len(), num_batches);
+            }
+            num_batches
+        };
         // now merge the batches
         let mut input_batches = vec![];
         for i in 0..num_batches {
@@ -519,6 +533,10 @@ impl GraphData {
                 batch.push(input[i].clone());
             }
             input_batches.push(DataSource::File(batch));
+        }
+
+        if input_batches.is_empty() {
+            input_batches.push(DataSource::File(vec![vec![]]));
         }
 
         // create a new GraphWitness for each batch

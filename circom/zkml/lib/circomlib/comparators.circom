@@ -98,6 +98,18 @@ template LessThan(n) {
     out <== 1-n2b.out[n];
 }
 
+template LessThanConst(n, constant) {
+    assert(n <= 252);
+    signal input in;
+    signal output out;
+
+    component n2b = Num2Bits(n+1);
+
+    n2b.in <== in+ (1<<n) - constant;
+
+    out <== 1-n2b.out[n];
+}
+
 
 
 // N is the number of bits the input  have.

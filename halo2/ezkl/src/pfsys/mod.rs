@@ -43,7 +43,7 @@ use thiserror::Error as thisError;
 use halo2curves::bn256::{Bn256, Fr, G1Affine};
 
 #[allow(missing_docs)]
-#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, PartialOrd)]
 pub enum ProofType {
     Single,
     ForAggr,
@@ -142,7 +142,7 @@ pub enum PfSysError {
 }
 
 #[allow(missing_docs)]
-#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, PartialOrd)]
 pub enum TranscriptType {
     Poseidon,
     EVM,
@@ -409,6 +409,7 @@ where
 }
 
 /// a wrapper around halo2's create_proof
+#[allow(clippy::too_many_arguments)]
 pub fn create_proof_circuit<
     'params,
     Scheme: CommitmentScheme,
@@ -505,7 +506,6 @@ where
 
 /// Swaps the proof commitments to a new set in the proof
 pub fn swap_proof_commitments<
-    'params,
     F: PrimeField,
     Scheme: CommitmentScheme,
     E: EncodedChallenge<Scheme::Curve>,
@@ -693,6 +693,7 @@ pub fn save_params<Scheme: CommitmentScheme>(
 }
 
 /// helper function
+#[allow(clippy::too_many_arguments)]
 pub fn create_proof_circuit_kzg<
     'params,
     C: Circuit<Fr>,
