@@ -25,6 +25,7 @@ $EXECUTABLE get-srs -S settings.json
 $EXECUTABLE compile-circuit -M "$EXAMPLE_PATH/$NAME.onnx" -S settings.json --compiled-circuit "$NAME.ezkl"
 $EXECUTABLE setup -M "$NAME.ezkl" --srs-path=kzg.srs --vk-path=vk.key --pk-path=pk.key
 $EXECUTABLE gen-witness -D "$EXAMPLE_PATH/input.json" -M "$NAME.ezkl"
+$EXECUTABLE mock -M "$NAME.ezkl" --witness witness.json
 
 echo "****GENERATING PROOF FOR SAMPLE INPUT****"
 start=`date +%s%N`
