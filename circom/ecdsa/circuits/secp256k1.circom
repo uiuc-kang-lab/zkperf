@@ -1,6 +1,6 @@
 pragma circom 2.0.2;
 
-include "bitify.circom";
+include "./circomlib/bitify.circom";
 
 include "bigint.circom";
 include "bigint_4x64_mult.circom";

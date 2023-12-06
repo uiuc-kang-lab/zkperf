@@ -1,7 +1,7 @@
 pragma circom 2.0.2;
 
-include "comparators.circom";
-include "multiplexer.circom";
+include "./circomlib/comparators.circom";
+include "./circomlib/multiplexer.circom";
 
 include "bigint.circom";
 include "secp256k1.circom";
