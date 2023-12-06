@@ -1,19 +1,18 @@
 #!/bin/bash
 
-PHASE1=pot21_final.ptau
+PHASE1=pot23_final.ptau
 BUILD_DIR=build/MNIST
-CIRCUIT_NAME=mnist_latest_precision_test
-# NODE_OPTIONS="--max-old-space-size=18432" # Bigger than 18 GB
-NODE_OPTIONS=""
+CIRCUIT_NAME=mnist
+NODE_OPTIONS="--max-old-space-size=51200" # Bigger than 18 GB
 SNARKJS="/home/ubuntu/.nvm/versions/node/v20.8.1/lib/node_modules/snarkjs/cli.js"
 OUTPUT="mnist_measurement.json"
-INPUT="data/mnist/mnist_latest_precision_input.json"
+INPUT="data/mnist/mnist.json"
 
 if [ -f "$PHASE1" ]; then
     echo "Found Phase 1 ptau file"
 else
-    echo "No Phase 1 ptau file found. Exiting..."
-    exit 1
+    echo "No Phase 1 ptau file found. Downloading..."
+    wget -O pot23_final.ptau https://hermez.s3-eu-west-1.amazonaws.com/powersOfTau28_hez_final_23.ptau
 fi
 
 if [ ! -d "$BUILD_DIR" ]; then
@@ -53,15 +52,15 @@ node $NODE_OPTIONS $SNARKJS groth16 setup "$BUILD_DIR"/"$CIRCUIT_NAME".r1cs "$PH
 end=`date +%s`
 echo "DONE ($((end-start))s)"
 
-echo "****CONTRIBUTE TO THE PHASE 2 CEREMONY****"
-start=`date +%s`
-echo "test" | node $NODE_OPTIONS $SNARKJS zkey contribute "$BUILD_DIR"/"$CIRCUIT_NAME"_0.zkey "$BUILD_DIR"/"$CIRCUIT_NAME"_1.zkey --name="1st Contributor Name"
-end=`date +%s`
-echo "DONE ($((end-start))s)"
+# echo "****CONTRIBUTE TO THE PHASE 2 CEREMONY****"
+# start=`date +%s`
+# echo "test" | node $NODE_OPTIONS $SNARKJS zkey contribute "$BUILD_DIR"/"$CIRCUIT_NAME"_0.zkey "$BUILD_DIR"/"$CIRCUIT_NAME"_1.zkey --name="1st Contributor Name"
+# end=`date +%s`
+# echo "DONE ($((end-start))s)"
 
 echo "****GENERATING FINAL ZKEY****"
 start=`date +%s`
-node $NODE_OPTIONS $SNARKJS zkey beacon "$BUILD_DIR"/"$CIRCUIT_NAME"_1.zkey "$BUILD_DIR"/"$CIRCUIT_NAME".zkey 0102030405060708090a0b0c0d0e0f101112231415161718221a1b1c1d1e1f 10 -n="Final Beacon phase2"
+node $NODE_OPTIONS $SNARKJS zkey beacon "$BUILD_DIR"/"$CIRCUIT_NAME"_0.zkey "$BUILD_DIR"/"$CIRCUIT_NAME".zkey 0102030405060708090a0b0c0d0e0f101112231415161718221a1b1c1d1e1f 10 -n="Final Beacon phase2"
 end=`date +%s`
 echo "DONE ($((end-start))s)"
 
