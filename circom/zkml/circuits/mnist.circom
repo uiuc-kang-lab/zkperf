@@ -14,7 +14,7 @@ template mnist(sd) {
     signal input in[28][28][1];
     signal input conv2d_1_weights[3][3][1][8];
     signal input conv2d_1_bias[8];
-    signal input bn_1_a[8];`
+    signal input bn_1_a[8];
     signal input bn_1_b[8];
     signal input conv2d_2_weights[3][3][8][16];
     signal input conv2d_2_bias[16];
