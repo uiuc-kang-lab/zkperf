@@ -4,7 +4,7 @@ PHASE1=pot23_final.ptau
 BUILD_DIR=build/MNIST
 CIRCUIT_NAME=mnist
 NODE_OPTIONS="--max-old-space-size=51200" # Bigger than 18 GB
-SNARKJS="/home/ubuntu/.nvm/versions/node/v20.8.1/lib/node_modules/snarkjs/cli.js"
+SNARKJS=~/".nvm/versions/node/v21.1.0/lib/node_modules/snarkjs/cli.js"
 OUTPUT="mnist_measurement.json"
 INPUT="data/mnist/mnist.json"
 
