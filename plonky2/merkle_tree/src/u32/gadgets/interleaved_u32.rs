@@ -91,9 +91,9 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilderB32<F, D>
         let gate = U32InterleaveGate::new_from_config(&self.config);
         let (row, copy) = self.find_slot(gate, &[], &[]);
 
-        self.connect(Target::wire(row, gate.wire_ith_x(copy)), x.0);
+        self.connect(Target::wire(row, U32InterleaveGate::wire_ith_x(copy)), x.0);
 
-        B32Target(Target::wire(row, gate.wire_ith_x_interleaved(copy)))
+        B32Target(Target::wire(row, U32InterleaveGate::wire_ith_x_interleaved(copy)))
     }
 
     fn uninterleave_to_u32(&mut self, x_dirty: Target) -> (U32Target, U32Target) {
@@ -101,12 +101,12 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilderB32<F, D>
         let (row, copy) = self.find_slot(gate, &[], &[]);
 
         self.connect(
-            Target::wire(row, gate.wire_ith_x_interleaved(copy)),
+            Target::wire(row, UninterleaveToU32Gate::wire_ith_x_interleaved(copy)),
             x_dirty,
         );
 
-        let x_evens = U32Target(Target::wire(row, gate.wire_ith_x_evens(copy)));
-        let x_odds = U32Target(Target::wire(row, gate.wire_ith_x_odds(copy)));
+        let x_evens = U32Target(Target::wire(row, UninterleaveToU32Gate::wire_ith_x_evens(copy)));
+        let x_odds = U32Target(Target::wire(row, UninterleaveToU32Gate::wire_ith_x_odds(copy)));
 
         (x_evens, x_odds)
     }
@@ -116,12 +116,12 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilderB32<F, D>
         let (row, copy) = self.find_slot(gate, &[], &[]);
 
         self.connect(
-            Target::wire(row, gate.wire_ith_x_interleaved(copy)),
+            Target::wire(row, UninterleaveToB32Gate::wire_ith_x_interleaved(copy)),
             x_dirty,
         );
 
-        let x_evens = B32Target(Target::wire(row, gate.wire_ith_x_evens(copy)));
-        let x_odds = B32Target(Target::wire(row, gate.wire_ith_x_odds(copy)));
+        let x_evens = B32Target(Target::wire(row, UninterleaveToB32Gate::wire_ith_x_evens(copy)));
+        let x_odds = B32Target(Target::wire(row, UninterleaveToB32Gate::wire_ith_x_odds(copy)));
 
         (x_evens, x_odds)
     }
@@ -522,8 +522,8 @@ mod tests {
     fn test_xor_u32() {
         #[rustfmt::skip]
         let tests = [
-            [0x0u32, 0x0], 
-            [0x01234567, 0x01234567], 
+            [0x0u32, 0x0],
+            [0x01234567, 0x01234567],
             [0x01234567, 0x0],
             [0x01234567, 0x89abcdef],
         ];
@@ -564,8 +564,8 @@ mod tests {
         let tests = [
             vec![],
             vec![0x01234567],
-            vec![0x0u32, 0x0], 
-            vec![0x01234567, 0x01234567], 
+            vec![0x0u32, 0x0],
+            vec![0x01234567, 0x01234567],
             vec![0x01234567, 0x0],
             vec![0x01234567, 0x89abcdef],
             vec![0x01234567, 0x01234567, 0x01234567],
@@ -621,8 +621,8 @@ mod tests {
     fn test_and_u32() {
         #[rustfmt::skip]
         let tests = [
-            [0x0u32, 0x0], 
-            [0x01234567, 0x01234567], 
+            [0x0u32, 0x0],
+            [0x01234567, 0x01234567],
             [0x01234567, 0x0],
             [0x01234567, 0x89abcdef],
         ];

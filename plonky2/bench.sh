@@ -39,7 +39,8 @@ cargo build --release
 cd ..
 #"$MERKLE_DIR"/target/release/standard
 touch $MERKLE_LOG
-{ RUST_LOG=debug /usr/bin/time -v "$MERKLE_DIR"/target/release/standard "$MERKLE_OUTPUT" 25; } 2> "$MERKLE_LOG"
+RUST_LOG=debug /usr/bin/time -v "$MERKLE_DIR"/target/release/standard build "$MERKLE_OUTPUT"
+{ RUST_LOG=debug /usr/bin/time -v "$MERKLE_DIR"/target/release/standard prove "$MERKLE_OUTPUT"; } 2> "$MERKLE_LOG"
 echo "$(jq --arg tmp $(echo "scale=6; $(cat "$MERKLE_LOG" | grep "Maximum resident set size" | tr -d -c 0-9)/1024" | bc) '.+={"MemoryConsumption": $tmp }' "$MERKLE_OUTPUT")" > "$MERKLE_OUTPUT"
 
 cd $ML_DIR

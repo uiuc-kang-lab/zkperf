@@ -1,12 +1,22 @@
+use clap::{App, Arg};
 use log::Level;
-// use plonky2::read_gate_impl;
-// use plonky2::{get_gate_tag_impl, util::serialization::GateSerializer};
-// use plonky2_crypto::u32::gates::arithmetic_u32::{U32ArithmeticGate, U32ArithmeticGenerator};
-// use plonky2_crypto::u32::gates::interleave_u32::{U32InterleaveGate, U32InterleaveGenerator};
-// use plonky2_crypto::u32::gates::subtraction_u32::{U32SubtractionGate, U32SubtractionGenerator};
-// use plonky2_crypto::u32::gates::uninterleave_to_u32::{UninterleaveToU32Gate, UninterleaveToU32Generator};
+use plonky2::impl_gate_serializer;
+use plonky2::read_gate_impl;
+use plonky2::{get_gate_tag_impl, util::serialization::GateSerializer};
+use plonky2_crypto::u32::gates::arithmetic_u32::{U32ArithmeticGate, U32ArithmeticGenerator};
+use plonky2_crypto::u32::gates::interleave_u32::{U32InterleaveGate, U32InterleaveGenerator};
+use plonky2_crypto::u32::gates::subtraction_u32::{U32SubtractionGate, U32SubtractionGenerator};
+use plonky2_crypto::u32::gates::uninterleave_to_b32::{
+    UninterleaveToB32Gate, UninterleaveToB32Generator,
+};
+use plonky2_crypto::u32::gates::uninterleave_to_u32::{
+    UninterleaveToU32Gate, UninterleaveToU32Generator,
+};
 use plonky2_field::types::Field;
+use serde::{Serialize, Deserialize};
 use serde_json::json;
+use std::io;
+use std::io::Read;
 use std::{fs::File, io::Write, time::Instant};
 
 use jemallocator::Jemalloc;
@@ -33,117 +43,111 @@ use plonky2_crypto::{
 use plonky2_field::goldilocks_field::GoldilocksField;
 use rand::Rng;
 
-// use plonky2::field::extension::Extendable;
-// use plonky2::gadgets::arithmetic::EqualityGenerator;
-// use plonky2::gadgets::arithmetic_extension::QuotientGeneratorExtension;
-// use plonky2::gadgets::range_check::LowHighGenerator;
-// use plonky2::gadgets::split_base::BaseSumGenerator;
-// use plonky2::gadgets::split_join::{SplitGenerator, WireSplitGenerator};
-// use plonky2::gates::arithmetic_base::ArithmeticBaseGenerator;
-// use plonky2::gates::arithmetic_base::ArithmeticGate;
-// use plonky2::gates::arithmetic_extension::ArithmeticExtensionGenerator;
-// use plonky2::gates::base_sum::BaseSplitGenerator;
-// use plonky2::gates::base_sum::BaseSumGate;
-// use plonky2::gates::constant::ConstantGate;
-// use plonky2::gates::coset_interpolation::CosetInterpolationGate;
-// use plonky2::gates::coset_interpolation::InterpolationGenerator;
-// use plonky2::gates::exponentiation::ExponentiationGenerator;
-// use plonky2::gates::lookup::LookupGate;
-// use plonky2::gates::lookup::LookupGenerator;
-// use plonky2::gates::lookup_table::LookupTableGate;
-// use plonky2::gates::lookup_table::LookupTableGenerator;
-// use plonky2::gates::multiplication_extension::MulExtensionGate;
-// use plonky2::gates::multiplication_extension::MulExtensionGenerator;
-// use plonky2::gates::noop::NoopGate;
-// use plonky2::gates::poseidon::PoseidonGate;
-// use plonky2::gates::poseidon::PoseidonGenerator;
-// use plonky2::gates::poseidon_mds::PoseidonMdsGate;
-// use plonky2::gates::poseidon_mds::PoseidonMdsGenerator;
-// use plonky2::gates::public_input::PublicInputGate;
-// use plonky2::gates::random_access::RandomAccessGate;
-// use plonky2::gates::random_access::RandomAccessGenerator;
-// use plonky2::gates::reducing::ReducingGate;
-// use plonky2::gates::reducing::ReducingGenerator;
-// use plonky2::gates::reducing_extension::ReducingGenerator as ReducingExtensionGenerator;
-// use plonky2::get_generator_tag_impl;
-// use plonky2::hash::hash_types::RichField;
-// use plonky2::impl_generator_serializer;
-// use plonky2::iop::generator::{
-//     ConstantGenerator, CopyGenerator, NonzeroTestGenerator, RandomValueGenerator,
-// };
+use plonky2::field::extension::Extendable;
+use plonky2::gadgets::arithmetic::EqualityGenerator;
+use plonky2::gadgets::arithmetic_extension::QuotientGeneratorExtension;
+use plonky2::gadgets::range_check::LowHighGenerator;
+use plonky2::gadgets::split_base::BaseSumGenerator;
+use plonky2::gadgets::split_join::{SplitGenerator, WireSplitGenerator};
+use plonky2::gates::arithmetic_base::ArithmeticBaseGenerator;
+use plonky2::gates::arithmetic_base::ArithmeticGate;
+use plonky2::gates::arithmetic_extension::ArithmeticExtensionGenerator;
+use plonky2::gates::base_sum::BaseSplitGenerator;
+use plonky2::gates::base_sum::BaseSumGate;
+use plonky2::gates::constant::ConstantGate;
+use plonky2::gates::coset_interpolation::CosetInterpolationGate;
+use plonky2::gates::coset_interpolation::InterpolationGenerator;
+use plonky2::gates::exponentiation::ExponentiationGenerator;
+use plonky2::gates::lookup::LookupGate;
+use plonky2::gates::lookup::LookupGenerator;
+use plonky2::gates::lookup_table::LookupTableGate;
+use plonky2::gates::lookup_table::LookupTableGenerator;
+use plonky2::gates::multiplication_extension::MulExtensionGate;
+use plonky2::gates::multiplication_extension::MulExtensionGenerator;
+use plonky2::gates::noop::NoopGate;
+use plonky2::gates::poseidon::PoseidonGate;
+use plonky2::gates::poseidon::PoseidonGenerator;
+use plonky2::gates::poseidon_mds::PoseidonMdsGate;
+use plonky2::gates::poseidon_mds::PoseidonMdsGenerator;
+use plonky2::gates::public_input::PublicInputGate;
+use plonky2::gates::random_access::RandomAccessGate;
+use plonky2::gates::random_access::RandomAccessGenerator;
+use plonky2::gates::reducing::ReducingGate;
+use plonky2::gates::reducing::ReducingGenerator;
+use plonky2::gates::reducing_extension::ReducingGenerator as ReducingExtensionGenerator;
+use plonky2::get_generator_tag_impl;
+use plonky2::hash::hash_types::RichField;
+use plonky2::impl_generator_serializer;
+use plonky2::iop::generator::{
+    ConstantGenerator, CopyGenerator, NonzeroTestGenerator, RandomValueGenerator,
+};
 
-// use plonky2::read_generator_impl;
-// use plonky2::util::serialization::WitnessGeneratorSerializer;
-// use serde::{Deserialize, Serialize};
+use plonky2::read_generator_impl;
+use plonky2::util::serialization::WitnessGeneratorSerializer;
 
-// pub struct MerkleGateSerializer;
-// impl<F: RichField + Extendable<D>, const D: usize> GateSerializer<F, D> for MerkleGateSerializer {
-//     impl_gate_serializer! {
-//         DefaultGateSerializer,
-//         ArithmeticGate,
-//         BaseSumGate<2>,
-//         BaseSumGate<4>,
-//         ConstantGate,
-//         CosetInterpolationGate<F, D>,
-//         LookupGate,
-//         LookupTableGate,
-//         MulExtensionGate<D>,
-//         NoopGate,
-//         PoseidonMdsGate<F, D>,
-//         PoseidonGate<F, D>,
-//         PublicInputGate,
-//         RandomAccessGate<F, D>,
-//         ReducingGate<D>,
-//         U32ArithmeticGate<F, D>,
-//         U32InterleaveGate,
-//         U32SubtractionGate<F, D>,
-//         UninterleaveToU32Gate
-//     }
-// }
-// pub struct MerkleGeneratorSerializer {}
+pub struct MerkleGateSerializer;
+impl<F: RichField + Extendable<D>, const D: usize> GateSerializer<F, D> for MerkleGateSerializer {
+    impl_gate_serializer! {
+        DefaultGateSerializer,
+        ArithmeticGate,
+        BaseSumGate<2>,
+        BaseSumGate<4>,
+        ConstantGate,
+        CosetInterpolationGate<F, D>,
+        LookupGate,
+        LookupTableGate,
+        MulExtensionGate<D>,
+        NoopGate,
+        PoseidonMdsGate<F, D>,
+        PoseidonGate<F, D>,
+        PublicInputGate,
+        RandomAccessGate<F, D>,
+        ReducingGate<D>,
+        U32ArithmeticGate<F, D>,
+        U32InterleaveGate,
+        U32SubtractionGate<F, D>,
+        UninterleaveToU32Gate,
+        UninterleaveToB32Gate
+    }
+}
+pub struct MerkleGeneratorSerializer {}
 
-// impl<F, const D: usize> WitnessGeneratorSerializer<F, D> for MerkleGeneratorSerializer
-// where
-//     F: RichField + Extendable<D>,
-// {
-//     impl_generator_serializer! {
-//         DefaultGeneratorSerializer,
-//         ArithmeticBaseGenerator<F, D>,
-//         ArithmeticExtensionGenerator<F, D>,
-//         BaseSplitGenerator<2>,
-//         BaseSumGenerator<2>,
-//         ConstantGenerator<F>,
-//         CopyGenerator,
-//         EqualityGenerator,
-//         ExponentiationGenerator<F, D>,
-//         InterpolationGenerator<F, D>,
-//         LookupGenerator,
-//         LookupTableGenerator,
-//         LowHighGenerator,
-//         MulExtensionGenerator<F, D>,
-//         NonzeroTestGenerator,
-//         PoseidonGenerator<F, D>,
-//         PoseidonMdsGenerator<D>,
-//         QuotientGeneratorExtension<D>,
-//         RandomAccessGenerator<F, D>,
-//         RandomValueGenerator,
-//         ReducingGenerator<D>,
-//         ReducingExtensionGenerator<D>,
-//         SplitGenerator,
-//         U32ArithmeticGenerator<F, D>,
-//         U32InterleaveGenerator,
-//         U32SubtractionGenerator<F, D>,
-//         UninterleaveToU32Generator,
-//         WireSplitGenerator
-//     }
-// }
-
-// Returns the cricuit data for verifying the Merkle Proof + the target for witness (non-public) input data
-// the second part might not be necessary, but don't know how to set that data otherwise in the testing part
-// #[derive(Serialize, Deserialize)]
-// pub struct MerkleTargets {
-//     targets: Vec<HashOutputTarget>,
-// }
+impl<F, const D: usize> WitnessGeneratorSerializer<F, D> for MerkleGeneratorSerializer
+where
+    F: RichField + Extendable<D>,
+{
+    impl_generator_serializer! {
+        DefaultGeneratorSerializer,
+        ArithmeticBaseGenerator<F, D>,
+        ArithmeticExtensionGenerator<F, D>,
+        BaseSplitGenerator<2>,
+        BaseSumGenerator<2>,
+        ConstantGenerator<F>,
+        CopyGenerator,
+        EqualityGenerator,
+        ExponentiationGenerator<F, D>,
+        InterpolationGenerator<F, D>,
+        LookupGenerator,
+        LookupTableGenerator,
+        LowHighGenerator,
+        MulExtensionGenerator<F, D>,
+        NonzeroTestGenerator,
+        PoseidonGenerator<F, D>,
+        PoseidonMdsGenerator<D>,
+        QuotientGeneratorExtension<D>,
+        RandomAccessGenerator<F, D>,
+        RandomValueGenerator,
+        ReducingGenerator<D>,
+        ReducingExtensionGenerator<D>,
+        SplitGenerator,
+        U32ArithmeticGenerator<F, D>,
+        U32InterleaveGenerator,
+        U32SubtractionGenerator<F, D>,
+        UninterleaveToU32Generator,
+        UninterleaveToB32Generator,
+        WireSplitGenerator
+    }
+}
 
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
@@ -263,9 +267,9 @@ fn verify_merkle_proof_circuit(
     }
     targets.push(next_hash);
 
-    // let json_string = serde_json::to_string(&merkle_targets).unwrap();
-    // let mut file = File::create("merkle.targets").unwrap();
-    // let _ = file.write_all(json_string.as_bytes());
+    let json_string = serde_json::to_string(&targets).unwrap();
+    let mut file = File::create("merkle_targets").unwrap();
+    file.write_all(json_string.as_bytes()).unwrap();
 
     println!("building circuit");
     builder.print_gate_counts(0);
@@ -274,14 +278,14 @@ fn verify_merkle_proof_circuit(
     let build_duration = start.elapsed();
     println!("circuit build duration: {:?}", build_duration);
 
-    // let gate_serializer = MerkleGateSerializer {};
-    // let generator_serializer = MerkleGeneratorSerializer {};
-    // let mut file = File::create("merkle.data").unwrap();
-    // let _ = file.write_all(
-    //     &data
-    //         .to_bytes(&gate_serializer, &generator_serializer)
-    //         .unwrap(),
-    // );
+    let gate_serializer = MerkleGateSerializer {};
+    let generator_serializer = MerkleGeneratorSerializer {};
+    let mut file = File::create("merkle_data").unwrap();
+    let _ = file.write_all(
+        &data
+            .to_bytes(&gate_serializer, &generator_serializer)
+            .unwrap(),
+    );
     (data, targets)
 }
 
@@ -304,9 +308,43 @@ fn get_tree(nr_leaves: u64) -> MerkleTree {
 
 fn main() {
     env_logger::init();
-    let outp_json = std::env::args().nth(1).expect("output json file path");
-    let x = std::env::args().nth(2).expect("cols");
-    let cols = x.parse::<usize>().unwrap();
+    let matches = App::new("standard")
+        .arg(
+            Arg::with_name("build_prove")
+                .index(1)
+                .value_name("build_prove")
+                .help("build or prove")
+                .required(true),
+        )
+        .arg(
+            Arg::with_name("output")
+                .index(2)
+                .value_name("outp_json")
+                .help("output json file path")
+                .required(true),
+        )
+        .arg(
+            Arg::with_name("cols")
+                .short("c")
+                .long("cols")
+                .value_name("cols")
+                .help("number of columns")
+                .takes_value(true),
+        )
+        .get_matches();
+
+    let build_prove = matches.value_of("build_prove").unwrap().to_string();
+    let outp_json = matches.value_of("output").unwrap().to_string();
+
+    if build_prove != "build" && build_prove != "prove" {
+        panic!("Must specify build or prove");
+    }
+
+    let cols = if let Some(col) = matches.value_of("cols") {
+        col.parse::<usize>().unwrap()
+    } else {
+        25 as usize
+    };
 
     if cols < 25 {
         panic!("Invalid cols")
@@ -316,64 +354,83 @@ fn main() {
     type C = KeccakGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
 
-    let tree: MerkleTree = get_tree(1024);
+    if build_prove == "build" {
+        verify_merkle_proof_circuit(0, 10, cols);
+    } else {
+        let tree: MerkleTree = get_tree(1024);
 
-    let merkle_proof_leaf0 = tree.clone().get_merkle_proof(0);
-    println!("{:?}", merkle_proof_leaf0);
+        let merkle_proof_leaf0 = tree.clone().get_merkle_proof(0);
+        println!("{:?}", merkle_proof_leaf0);
+        let mut target_file = File::open("merkle_targets").unwrap();
+        let mut target_string = String::new();
 
-    let (circuit_data, targets) = verify_merkle_proof_circuit(0, 10, cols);
+        target_file.read_to_string(&mut target_string).unwrap();
 
-    let mut pw = plonky2::iop::witness::PartialWitness::new();
-    // non-public inputs to witness: leaf and elements of merkle proof
-    pw.set_keccak256_output_target(&targets[0], &tree.tree[0][0]);
-    for i in 1..11 {
-        pw.set_keccak256_output_target(&targets[i], &merkle_proof_leaf0[i - 1]);
+        let targets: Vec<HashOutputTarget> = serde_json::from_str(&target_string).unwrap();
+
+        let mut file = File::open("merkle_data").expect("File not found");
+
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer)
+            .expect("Failed to read the file");
+
+        let gate_serializer = MerkleGateSerializer {};
+        let generator_serializer = MerkleGeneratorSerializer {};
+        let circuit_data: CircuitData<F, C, D> =
+            CircuitData::from_bytes(&buffer, &gate_serializer, &generator_serializer).unwrap();
+
+        let mut pw = plonky2::iop::witness::PartialWitness::new();
+        // non-public inputs to witness: leaf and elements of merkle proof
+        pw.set_keccak256_output_target(&targets[0], &tree.tree[0][0]);
+        for i in 1..11 {
+            pw.set_keccak256_output_target(&targets[i], &merkle_proof_leaf0[i - 1]);
+        }
+        // public input: root of merkle tree
+        let expected_public_inputs = &targets[targets.len() - 1];
+
+        pw.set_keccak256_output_target(expected_public_inputs, &tree.root);
+
+        println!("proving circuit");
+        let mut timing = TimingTree::new("prove", Level::Info);
+        let proof = prove::<F, C, D>(
+            &circuit_data.prover_only,
+            &circuit_data.common,
+            pw,
+            &mut timing,
+        )
+        .unwrap();
+        timing.pop();
+        timing.print();
+        let proof_duration = timing.duration();
+        println!("Proving time: {:?}", proof_duration);
+
+        let proof_bytes = proof.to_bytes();
+        let proof_len = proof_bytes.len();
+        println!("Proof size: {} bytes", proof_len);
+
+        println!("verifying circuit");
+        let mut timing = TimingTree::new("verify", Level::Info);
+        circuit_data.verify(proof).expect("verify error");
+        timing.pop();
+        timing.print();
+
+        let verify_duration = timing.duration();
+        println!("Verifying time: {:?}", verify_duration);
+
+        println!("writing results");
+        let results = json!({
+          "Framework": "plonky2",
+          "Circuit": "MerkleTree",
+          "Backend": "Plonk+FRI",
+          "Curve": "NaN",
+          "ProverTime": proof_duration.as_secs_f32(),
+          "VerifierTime": verify_duration.as_nanos() as f32 / 1000000.,
+          "ProofSize": proof_len
+        });
+
+        let json_string = serde_json::to_string(&results).unwrap();
+
+        let mut file = File::create(outp_json).unwrap();
+        let _ = file.write_all(json_string.as_bytes());
     }
-    // public input: root of merkle tree
-    let expected_public_inputs = &targets[targets.len() - 1];
-
-    pw.set_keccak256_output_target(expected_public_inputs, &tree.root);
-
-    println!("proving circuit");
-    let mut timing = TimingTree::new("prove", Level::Info);
-    let proof = prove::<F, C, D>(
-        &circuit_data.prover_only,
-        &circuit_data.common,
-        pw,
-        &mut timing,
-    )
-    .unwrap();
-    timing.pop();
-    timing.print();
-    let proof_duration = timing.duration();
-    println!("Proving time: {:?}", proof_duration);
-
-    let proof_bytes = proof.to_bytes();
-    let proof_len = proof_bytes.len();
-    println!("Proof size: {} bytes", proof_len);
-
-    println!("verifying circuit");
-    let mut timing = TimingTree::new("verify", Level::Info);
-    circuit_data.verify(proof).expect("verify error");
-    timing.pop();
-    timing.print();
-
-    let verify_duration = timing.duration();
-    println!("Verifying time: {:?}", verify_duration);
-
-    println!("writing results");
-    let results = json!({
-      "Framework": "plonky2",
-      "Circuit": "MerkleTree",
-      "Backend": "Plonk+FRI",
-      "Curve": "NaN",
-      "ProverTime": proof_duration.as_secs_f32(),
-      "VerifierTime": verify_duration.as_nanos() as f32 / 1000000.,
-      "ProofSize": proof_len
-    });
-
-    let json_string = serde_json::to_string(&results).unwrap();
-
-    let mut file = File::create(outp_json).unwrap();
-    let _ = file.write_all(json_string.as_bytes());
 }
