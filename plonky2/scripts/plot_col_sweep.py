@@ -17,10 +17,11 @@ def main():
   cols = sorted(list(cols))
   times = {"dlrm": [], "mnist": [], "ecdsa": [], "merkle": [], "mnist_no_lookup": []}
 
-  fig, axes = plt.subplots(
-        figsize=(4 * 4, 3.3), ncols=4, nrows=1,
-        sharex=False
-  )
+  fig=plt.figure(figsize=(4 * 3+1, 2.2 * 2 + .5))
+#   fig, axes = plt.subplots(
+#         figsize=(4 * 3, 3.3 * 2), ncols=3, nrows=2,
+#         sharex=False
+#   )
   fig.tight_layout()
 
   for task in times:
@@ -36,40 +37,65 @@ def main():
                 min_col = c
     print(task, cols, times[task])
     default_time = next(tup for tup in times[task] if tup[0] == 80)[1]
-    speedup = (default_time - min_time) / default_time
+    speedup = default_time / min_time
     print("{} min time: {}, col: {}. speedup from default: {}".format(task, min_time, min_col, speedup))
 
-  df = pd.DataFrame(data=times['dlrm'], columns=['Columns', 'Proving time (s)'])
-  sns.lineplot(x='Columns', y='Proving time (s)', data=df, ax=axes[0], markers=True)
-  axes[0].plot(df['Columns'], df['Proving time (s)'], marker='o')
-  axes[0].set_ylim(0)
-  axes[0].set_title('plonky2 DLRM')
-
+  ax1 = fig.add_subplot(2, 3, 1)
   df = pd.DataFrame(data=times['mnist'], columns=['Columns', 'Proving time (s)'])
-  sns.lineplot(x='Columns', y='Proving time (s)', data=df, ax=axes[1])
-  axes[1].plot(df['Columns'], df['Proving time (s)'], marker='o')
-  axes[1].set_ylim(0)
-  axes[1].set_title('plonky2 MNIST')
-  axes[1].set_ylabel('')
+  sns.lineplot(x='Columns', y='Proving time (s)', data=df, ax=ax1)
+  ax1.plot(df['Columns'], df['Proving time (s)'], marker='o')
+  ax1.set_ylim(0)
+  ax1.set_title('a) plonky2 MNIST')
 
+  ax2 = fig.add_subplot(2, 3, 2)
   df = pd.DataFrame(data=times['ecdsa'], columns=['Columns', 'Proving time (s)'])
-  sns.lineplot(x='Columns', y='Proving time (s)', data=df, ax=axes[2])
-  axes[2].plot(df['Columns'], df['Proving time (s)'], marker='o')
-  axes[2].set_ylim(0)
-  axes[2].set_title('plonky2 ECDSA')
-  axes[2].set_ylabel('')
+  sns.lineplot(x='Columns', y='Proving time (s)', data=df, ax=ax2)
+  ax2.plot(df['Columns'], df['Proving time (s)'], marker='o')
+  ax2.set_ylim(0)
+  ax2.set_title('b) plonky2 ECDSA')
+  ax2.set_ylabel('')
 
+  ax3 = fig.add_subplot(2, 3, 3)
   df = pd.DataFrame(data=times['merkle'], columns=['Columns', 'Proving time (s)'])
-  sns.lineplot(x='Columns', y='Proving time (s)', data=df, ax=axes[3])
-  axes[3].plot(df['Columns'], df['Proving time (s)'], marker='o')
-  axes[3].set_ylim(0)
-  axes[3].set_title('plonky2 Merkle Tree')
-  axes[3].set_ylabel('')
+  sns.lineplot(x='Columns', y='Proving time (s)', data=df, ax=ax3)
+  ax3.plot(df['Columns'], df['Proving time (s)'], marker='o')
+  ax3.set_ylim(0)
+  ax3.set_title('c) plonky2 Merkle Tree')
+  ax3.set_ylabel('')
+
+  ax4 = fig.add_subplot(2, 3, 4)
+  df = pd.DataFrame(data=times['dlrm'], columns=['Columns', 'Proving time (s)'])
+  sns.lineplot(x='Columns', y='Proving time (s)', data=df, ax=ax4, markers=True)
+  ax4.plot(df['Columns'], df['Proving time (s)'], marker='o')
+  ax4.set_ylim(0)
+  ax4.set_title('d) plonky2 DLRM')
+
+  bench = []
+  halo_path = "../halo2/zkml/experiments"
+  for file in os.listdir(halo_path):
+    if file.endswith(".txt"):
+      name = file.replace(".txt", "")
+      cols = int(name.split("_")[-2])
+      with open(os.path.join(halo_path, file)) as f:
+        lines = f.readlines()
+        for line in lines:
+          line = line.strip()
+          elems = line.split(": ")
+          if elems[0] == "Proving time":
+            bench.append((cols, float(elems[1][:-1])))
+
+  ax5 = fig.add_subplot(2, 3, 5)
+  df = pd.DataFrame(data=bench, columns=['Columns', 'Proving time (s)'])
+  sns.scatterplot(data=df, x='Columns', y='Proving time (s)', marker="o", ax=ax5)
+  ax5.set_xlabel("Columns")
+  ax5.set_title("e) halo2 zkml DLRM")
+  ax5.set_ylabel('')
+  plt.subplots_adjust(hspace=0.5)
 
   plt.savefig('col_sweep.pdf', bbox_inches='tight', pad_inches=0)
 
   fig, axes = plt.subplots(
-        figsize=(1 * 4, 3.3), ncols=1, nrows=1,
+        figsize=(1 * 4, 2.2), ncols=1, nrows=1,
         sharex=False
   )
   fig.tight_layout()
