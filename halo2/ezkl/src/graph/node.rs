@@ -84,7 +84,7 @@ impl Op<Fp> for Rescaled {
         format!("RESCALED INPUT ({})", self.inner.as_string())
     }
 
-    fn out_scale(&self, in_scales: Vec<crate::Scale>) -> crate::Scale {
+    fn out_scale(&self, in_scales: Vec<crate::Scale>) -> Result<crate::Scale, Box<dyn Error>> {
         let in_scales = in_scales
             .into_iter()
             .zip(self.scale.iter())
@@ -203,7 +203,6 @@ impl Op<Fp> for RebaseScale {
     }
     fn f(&self, x: &[Tensor<Fp>]) -> Result<crate::circuit::ForwardResult<Fp>, TensorError> {
         let mut res = Op::<Fp>::f(&*self.inner, x)?;
-
         let ri = res.output.map(felt_to_i128);
         let rescaled = crate::tensor::ops::nonlinearities::const_div(&ri, self.multiplier);
         res.output = rescaled.map(i128_to_felt);
@@ -221,8 +220,8 @@ impl Op<Fp> for RebaseScale {
         )
     }
 
-    fn out_scale(&self, _: Vec<crate::Scale>) -> crate::Scale {
-        self.target_scale
+    fn out_scale(&self, _: Vec<crate::Scale>) -> Result<crate::Scale, Box<dyn Error>> {
+        Ok(self.target_scale)
     }
 
     fn required_lookups(&self) -> Vec<LookupOp> {
@@ -239,7 +238,10 @@ impl Op<Fp> for RebaseScale {
         region: &mut crate::circuit::region::RegionCtx<Fp>,
         values: &[crate::tensor::ValTensor<Fp>],
     ) -> Result<Option<crate::tensor::ValTensor<Fp>>, Box<dyn Error>> {
-        let original_res = self.inner.layout(config, region, values)?.unwrap();
+        let original_res = self
+            .inner
+            .layout(config, region, values)?
+            .ok_or("no layout")?;
 
         Ok(Some(crate::circuit::layouts::nonlinearity(
             config,
@@ -311,6 +313,14 @@ impl SupportedOp {
     }
 
     ///
+    pub fn get_constant(&self) -> Option<&Constant<Fp>> {
+        match self {
+            SupportedOp::Constant(op) => Some(op),
+            _ => None,
+        }
+    }
+
+    ///
     pub fn get_mutable_constant(&mut self) -> Option<&mut Constant<Fp>> {
         match self {
             SupportedOp::Constant(op) => Some(op),
@@ -319,11 +329,14 @@ impl SupportedOp {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn homogenous_rescale(&self, in_scales: Vec<crate::Scale>) -> Box<dyn Op<Fp>> {
+    fn homogenous_rescale(
+        &self,
+        in_scales: Vec<crate::Scale>,
+    ) -> Result<Box<dyn Op<Fp>>, Box<dyn Error>> {
         let inputs_to_scale = self.requires_homogenous_input_scales();
         // creates a rescaled op if the inputs are not homogenous
         let op = self.clone_dyn();
-        super::homogenize_input_scales(op, in_scales, inputs_to_scale).unwrap()
+        super::homogenize_input_scales(op, in_scales, inputs_to_scale)
     }
 }
 
@@ -359,7 +372,9 @@ impl From<Box<dyn Op<Fp>>> for SupportedOp {
             return SupportedOp::RebaseScale(op.clone());
         };
 
-        panic!("Unsupported op type")
+        log::error!("Unsupported op type");
+        log::warn!("defaulting to Unknown");
+        SupportedOp::Unknown(Unknown {})
     }
 }
 
@@ -480,7 +495,7 @@ impl Op<Fp> for SupportedOp {
         }
     }
 
-    fn out_scale(&self, in_scales: Vec<crate::Scale>) -> crate::Scale {
+    fn out_scale(&self, in_scales: Vec<crate::Scale>) -> Result<crate::Scale, Box<dyn Error>> {
         match self {
             SupportedOp::Linear(op) => Op::<Fp>::out_scale(op, in_scales),
             SupportedOp::Nonlinear(op) => Op::<Fp>::out_scale(op, in_scales),
@@ -602,9 +617,10 @@ impl Node {
             .map(|i| (i.node, i.slot))
             .collect::<Vec<_>>();
 
-        input_ids.iter().for_each(|(i, _)| {
-            inputs.push(other_nodes.get(i).ok_or("input not found").unwrap().clone())
-        });
+        input_ids
+            .iter()
+            .map(|(i, _)| Ok(inputs.push(other_nodes.get(i).ok_or("input not found")?.clone())))
+            .collect::<Result<Vec<_>, Box<dyn Error>>>()?;
 
         let (mut opkind, deleted_indices) = new_op_from_onnx(
             idx,
@@ -637,10 +653,13 @@ impl Node {
         let mut in_scales: Vec<crate::Scale> = input_ids
             .iter()
             .map(|(idx, outlet)| {
-                let idx = inputs.iter().position(|x| *idx == x.idx()).unwrap();
-                inputs[idx].out_scales()[*outlet]
+                let idx = inputs
+                    .iter()
+                    .position(|x| *idx == x.idx())
+                    .ok_or("input not found")?;
+                Ok(inputs[idx].out_scales()[*outlet])
             })
-            .collect();
+            .collect::<Result<Vec<_>, Box<dyn Error>>>()?;
 
         let homogenous_inputs = opkind.requires_homogenous_input_scales();
         // autoamtically increases a constant's scale if it is only used once and
@@ -648,7 +667,9 @@ impl Node {
             .into_iter()
             .filter(|i| !deleted_indices.contains(i))
         {
-            let input_node = other_nodes.get_mut(&inputs[input].idx()).unwrap();
+            let input_node = other_nodes
+                .get_mut(&inputs[input].idx())
+                .ok_or("input not found")?;
             let input_opkind = &mut input_node.opkind();
             if let Some(constant) = input_opkind.get_mutable_constant() {
                 rescale_const_with_single_use(
@@ -658,19 +679,19 @@ impl Node {
                     input_node.num_uses(),
                 )?;
                 input_node.replace_opkind(constant.clone_dyn().into());
-                let out_scale = input_opkind.out_scale(vec![]);
+                let out_scale = input_opkind.out_scale(vec![])?;
                 input_node.bump_scale(out_scale);
                 in_scales[input] = out_scale;
             }
         }
 
-        opkind = opkind.homogenous_rescale(in_scales.clone()).into();
-        let mut out_scale = opkind.out_scale(in_scales.clone());
+        opkind = opkind.homogenous_rescale(in_scales.clone())?.into();
+        let mut out_scale = opkind.out_scale(in_scales.clone())?;
         // rescale the inputs if necessary to get consistent fixed points, we select the largest scale (highest precision)
         let global_scale = scales.get_max();
         opkind = RebaseScale::rebase(opkind, global_scale, out_scale, scales.rebase_multiplier);
 
-        out_scale = opkind.out_scale(in_scales);
+        out_scale = opkind.out_scale(in_scales)?;
 
         // get the output shape
         let mut out_dims = {
@@ -684,7 +705,7 @@ impl Node {
             } else if let Some([Some(v), Some(_)]) = output_shapes.as_deref() {
                 v.to_vec()
             } else {
-                panic!("Could not get output shape for node {:?}", node);
+                return Err("could not get output shape for node".into());
             }
         };
 
@@ -711,8 +732,8 @@ fn rescale_const_with_single_use(
     num_uses: usize,
 ) -> Result<(), Box<dyn Error>> {
     if num_uses == 1 {
-        let current_scale = constant.out_scale(vec![]);
-        let scale_max = in_scales.iter().max().unwrap();
+        let current_scale = constant.out_scale(vec![])?;
+        let scale_max = in_scales.iter().max().ok_or("no scales")?;
         if scale_max > &current_scale {
             let raw_values = constant.raw_values.clone();
             constant.quantized_values =

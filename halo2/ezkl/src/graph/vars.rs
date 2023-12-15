@@ -68,7 +68,11 @@ impl<'a> From<&'a str> for Visibility {
                 outlets: vec![],
             },
             "encrypted" => Visibility::Encrypted,
-            _ => panic!("Invalid visibility string"),
+            _ => {
+                log::error!("Invalid value for Visibility: {}", s);
+                log::warn!("Defaulting to private");
+                Visibility::Private
+            }
         }
     }
 }
@@ -255,7 +259,7 @@ impl VarScales {
 }
 
 /// Represents whether the model input, model parameters, and model output are Public or Private to the prover.
-#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, PartialOrd)]
 pub struct VarVisibility {
     /// Input to the model or computational graph
     pub input: Visibility,
@@ -274,6 +278,16 @@ impl std::fmt::Display for VarVisibility {
     }
 }
 
+impl Default for VarVisibility {
+    fn default() -> Self {
+        Self {
+            input: Visibility::Private,
+            params: Visibility::Private,
+            output: Visibility::Public,
+        }
+    }
+}
+
 impl VarVisibility {
     /// Read from cli args whether the model input, model parameters, and model output are Public or Private to the prover.
     /// Place in [VarVisibility] struct.
@@ -281,6 +295,12 @@ impl VarVisibility {
         let input_vis = &args.input_visibility;
         let params_vis = &args.param_visibility;
         let output_vis = &args.output_visibility;
+
+        if params_vis.is_public() {
+            return Err(
+                "public visibility for params is deprecated, please use `fixed` instead".into(),
+            );
+        }
 
         if !output_vis.is_public()
             & !params_vis.is_public()
@@ -397,7 +417,7 @@ impl<F: PrimeField + TensorType + PartialOrd> ModelVars<F> {
         var_len: usize,
         num_inner_cols: usize,
         num_constants: usize,
-        uses_modules: bool,
+        module_requires_fixed: bool,
     ) -> Self {
         info!("number of blinding factors: {}", cs.blinding_factors());
 
@@ -411,7 +431,8 @@ impl<F: PrimeField + TensorType + PartialOrd> ModelVars<F> {
             num_inner_cols
         );
 
-        let num_const_cols = VarTensor::constant_cols(cs, logrows, num_constants, uses_modules);
+        let num_const_cols =
+            VarTensor::constant_cols(cs, logrows, num_constants, module_requires_fixed);
         debug!("model uses {} fixed columns", num_const_cols);
 
         ModelVars {

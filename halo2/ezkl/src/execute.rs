@@ -1,7 +1,7 @@
 use crate::circuit::CheckMode;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::commands::CalibrationTarget;
-use crate::commands::{Cli, Commands};
+use crate::commands::Commands;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::eth::{deploy_da_verifier_via_solidity, deploy_verifier_via_solidity};
 #[cfg(not(target_arch = "wasm32"))]
@@ -53,8 +53,6 @@ use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use std::error::Error;
 use std::fs::File;
 #[cfg(not(target_arch = "wasm32"))]
-use std::io::ErrorKind::NotFound;
-#[cfg(not(target_arch = "wasm32"))]
 use std::io::{Cursor, Write};
 use std::path::{Path, PathBuf};
 #[cfg(not(target_arch = "wasm32"))]
@@ -76,28 +74,21 @@ fn check_solc_requirement() {
     info!("checking solc installation..");
     _SOLC_REQUIREMENT.get_or_init(|| match Command::new("solc").arg("--version").output() {
         Ok(output) => {
-            #[cfg(not(target_arch = "wasm32"))]
             debug!("solc output: {:#?}", output);
-            #[cfg(not(target_arch = "wasm32"))]
             debug!("solc output success: {:#?}", output.status.success());
-            assert!(
-                output.status.success(),
-                "`solc` check failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
-            #[cfg(not(target_arch = "wasm32"))]
+            if !output.status.success() {
+                log::error!(
+                    "`solc` check failed: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                return false;
+            }
             debug!("solc check passed, proceeding");
             true
         }
-        Err(e) => {
-            if let NotFound = e.kind() {
-                panic!(
-                    "`solc` was not found! Consider using solc-select or check your PATH! {}",
-                    e
-                );
-            } else {
-                panic!("`solc` check failed: {}", e);
-            }
+        Err(_) => {
+            log::error!("`solc` check failed: solc not found");
+            false
         }
     });
 }
@@ -111,15 +102,16 @@ pub enum ExecutionError {
 }
 
 /// Run an ezkl command with given args
-pub async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
-    match cli.command {
+pub async fn run(command: Commands) -> Result<(), Box<dyn Error>> {
+    match command {
+        Commands::Empty => Ok(()),
         #[cfg(not(target_arch = "wasm32"))]
         Commands::Fuzz {
             witness,
             compiled_circuit,
             transcript,
             num_runs,
-        } => fuzz(compiled_circuit, witness, transcript, num_runs).await,
+        } => fuzz(compiled_circuit, witness, transcript, num_runs),
 
         Commands::GenSrs { srs_path, logrows } => gen_srs_cmd(srs_path, logrows as u32),
         #[cfg(not(target_arch = "wasm32"))]
@@ -149,7 +141,7 @@ pub async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
             target,
             scales,
             max_logrows,
-        } => calibrate(model, data, settings_path, target, scales, max_logrows).await,
+        } => calibrate(model, data, settings_path, target, scales, max_logrows),
         Commands::GenWitness {
             data,
             compiled_circuit,
@@ -159,7 +151,7 @@ pub async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
         } => gen_witness(compiled_circuit, data, Some(output), vk_path, srs_path)
             .await
             .map(|_| ()),
-        Commands::Mock { model, witness } => mock(model, witness).await,
+        Commands::Mock { model, witness } => mock(model, witness),
         #[cfg(not(target_arch = "wasm32"))]
         Commands::CreateEVMVerifier {
             vk_path,
@@ -258,7 +250,6 @@ pub async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
             proof_type,
             check_mode,
         )
-        .await
         .map(|_| ()),
         Commands::MockAggregate {
             aggregation_snarks,
@@ -358,14 +349,17 @@ pub async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
         } => verify_evm(proof_path, addr_verifier, rpc_url, addr_da).await,
         Commands::PrintProofHex { proof_path } => print_proof_hex(proof_path),
         #[cfg(not(target_arch = "wasm32"))]
-        Commands::GetHubCredentials { username, url } => {
-            get_hub_credentials(url.as_deref(), &username)
-                .await
-                .map(|_| ())
-        }
+        Commands::GetHubCredentials {
+            api_key,
+            username,
+            url,
+        } => get_hub_credentials(api_key.as_deref(), url.as_deref(), &username)
+            .await
+            .map(|_| ()),
 
         #[cfg(not(target_arch = "wasm32"))]
         Commands::CreateHubArtifact {
+            api_key,
             uncompiled_circuit,
             data,
             organization_id,
@@ -374,6 +368,7 @@ pub async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
             args,
             target,
         } => deploy_model(
+            api_key.as_deref(),
             url.as_deref(),
             &uncompiled_circuit,
             &data,
@@ -385,23 +380,30 @@ pub async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
         .await
         .map(|_| ()),
         #[cfg(not(target_arch = "wasm32"))]
-        Commands::GetHubProof { artifact_id, url } => get_hub_proof(url.as_deref(), &artifact_id)
+        Commands::GetHubArtifact {
+            api_key,
+            artifact_id,
+            url,
+        } => get_deployed_model(api_key.as_deref(), url.as_deref(), &artifact_id)
+            .await
+            .map(|_| ()),
+        #[cfg(not(target_arch = "wasm32"))]
+        Commands::GetHubProof {
+            api_key,
+            proof_id,
+            url,
+        } => get_hub_proof(api_key.as_deref(), url.as_deref(), &proof_id)
             .await
             .map(|_| ()),
         #[cfg(not(target_arch = "wasm32"))]
         Commands::ProveHub {
+            api_key,
             artifact_id,
             data,
-            transcript_type,
             url,
-        } => prove_hub(
-            url.as_deref(),
-            &artifact_id,
-            &data,
-            transcript_type.as_deref(),
-        )
-        .await
-        .map(|_| ()),
+        } => prove_hub(api_key.as_deref(), url.as_deref(), &artifact_id, &data)
+            .await
+            .map(|_| ()),
     }
 }
 
@@ -593,7 +595,7 @@ use colored_json::ToColoredJson;
 /// Calibrate the circuit parameters to a given a dataset
 #[cfg(not(target_arch = "wasm32"))]
 #[allow(trivial_casts)]
-pub(crate) async fn calibrate(
+pub(crate) fn calibrate(
     model_path: PathBuf,
     data: PathBuf,
     settings_path: PathBuf,
@@ -606,21 +608,29 @@ pub(crate) async fn calibrate(
     let settings = GraphSettings::load(&settings_path)?;
     // now retrieve the run args
     // we load the model to get the input and output shapes
-    let _r = Gag::stdout().unwrap();
-    let model = Model::from_run_args(&settings.run_args, &model_path).unwrap();
+    // check if gag already exists
+
+    #[cfg(unix)]
+    let _r = match Gag::stdout() {
+        Ok(r) => Some(r),
+        Err(_) => None,
+    };
+
+    let model = Model::from_run_args(&settings.run_args, &model_path)?;
     // drop the gag
+    #[cfg(unix)]
     std::mem::drop(_r);
 
     let range = if let Some(scales) = scales {
         scales
     } else {
         match target {
-            CalibrationTarget::Resources { .. } => (2..8).collect::<Vec<crate::Scale>>(),
-            CalibrationTarget::Accuracy => (8..14).collect::<Vec<crate::Scale>>(),
+            CalibrationTarget::Resources { .. } => (8..10).collect::<Vec<crate::Scale>>(),
+            CalibrationTarget::Accuracy => (10..14).collect::<Vec<crate::Scale>>(),
         }
     };
 
-    let chunks = data.split_into_batches(model.graph.input_shapes()).unwrap();
+    let chunks = data.split_into_batches(model.graph.input_shapes()?)?;
 
     info!("num of calibration batches: {}", chunks.len());
 
@@ -642,7 +652,11 @@ pub(crate) async fn calibrate(
         .collect::<Vec<(crate::Scale, crate::Scale)>>();
 
     // if all integers
-    let all_scale_0 = model.graph.get_input_types().iter().all(|t| t.is_integer());
+    let all_scale_0 = model
+        .graph
+        .get_input_types()?
+        .iter()
+        .all(|t| t.is_integer());
     if all_scale_0 {
         // set all a values to 0 then dedup
         range_grid = range_grid
@@ -667,13 +681,19 @@ pub(crate) async fn calibrate(
             "input scale: {}, param scale: {}, scale rebase multiplier: {}",
             input_scale, param_scale, scale_rebase_multiplier
         ));
-        std::thread::sleep(Duration::from_millis(100));
-
         // vec of settings copied chunks.len() times
         let run_args_iterable = vec![settings.run_args.clone(); chunks.len()];
 
-        let _r = Gag::stdout().unwrap();
-        let _q = Gag::stderr().unwrap();
+        #[cfg(unix)]
+        let _r = match Gag::stdout() {
+            Ok(r) => Some(r),
+            Err(_) => None,
+        };
+        #[cfg(unix)]
+        let _q = match Gag::stderr() {
+            Ok(r) => Some(r),
+            Err(_) => None,
+        };
 
         let tasks = chunks
             .iter()
@@ -694,59 +714,56 @@ pub(crate) async fn calibrate(
                 let mut circuit = match GraphCircuit::from_run_args(&local_run_args, &model_path) {
                     Ok(c) => c,
                     Err(_) => {
-                        return tokio::task::spawn(async move {
-                            Err(format!("failed to create circuit from run args"))
-                                as Result<GraphSettings, String>
-                        })
+                        return Err(format!("failed to create circuit from run args"))
+                            as Result<GraphSettings, String>
                     }
                 };
 
-                tokio::task::spawn(async move {
-                    let data = circuit
-                        .load_graph_input(&chunk)
-                        .await
-                        .map_err(|e| format!("failed to load circuit inputs: {}", e))?;
+                let data = circuit
+                    .load_graph_from_file_exclusively(&chunk)
+                    .map_err(|e| format!("failed to load circuit inputs: {}", e))?;
 
-                    circuit
-                        .calibrate(&data, max_logrows)
-                        .map_err(|e| format!("failed to calibrate: {}", e))?;
+                circuit
+                    .calibrate(&data, max_logrows)
+                    .map_err(|e| format!("failed to calibrate: {}", e))?;
 
-                    let settings = circuit.settings().clone();
+                let settings = circuit.settings().clone();
 
-                    let found_run_args = RunArgs {
-                        input_scale: settings.run_args.input_scale,
-                        param_scale: settings.run_args.param_scale,
-                        lookup_range: settings.run_args.lookup_range,
-                        logrows: settings.run_args.logrows,
-                        scale_rebase_multiplier: settings.run_args.scale_rebase_multiplier,
-                        ..run_args.clone()
-                    };
+                let found_run_args = RunArgs {
+                    input_scale: settings.run_args.input_scale,
+                    param_scale: settings.run_args.param_scale,
+                    lookup_range: settings.run_args.lookup_range,
+                    logrows: settings.run_args.logrows,
+                    scale_rebase_multiplier: settings.run_args.scale_rebase_multiplier,
+                    ..run_args.clone()
+                };
 
-                    let found_settings = GraphSettings {
-                        run_args: found_run_args,
-                        required_lookups: settings.required_lookups,
-                        model_output_scales: settings.model_output_scales,
-                        model_input_scales: settings.model_input_scales,
-                        num_rows: settings.num_rows,
-                        total_assignments: settings.total_assignments,
-                        total_const_size: settings.total_const_size,
-                        ..original_settings.clone()
-                    };
+                let found_settings = GraphSettings {
+                    run_args: found_run_args,
+                    required_lookups: settings.required_lookups,
+                    model_output_scales: settings.model_output_scales,
+                    model_input_scales: settings.model_input_scales,
+                    num_rows: settings.num_rows,
+                    total_assignments: settings.total_assignments,
+                    total_const_size: settings.total_const_size,
+                    ..original_settings.clone()
+                };
 
-                    Ok(found_settings) as Result<GraphSettings, String>
-                })
+                Ok(found_settings) as Result<GraphSettings, String>
             })
-            .collect::<Vec<tokio::task::JoinHandle<std::result::Result<GraphSettings, String>>>>();
+            .collect::<Vec<Result<GraphSettings, String>>>();
 
         let mut res: Vec<GraphSettings> = vec![];
         for task in tasks {
-            if let Ok(task) = task.await? {
+            if let Ok(task) = task {
                 res.push(task);
             }
         }
 
         // drop the gag
+        #[cfg(unix)]
         std::mem::drop(_r);
+        #[cfg(unix)]
         std::mem::drop(_q);
 
         let max_lookup_range = res
@@ -792,7 +809,11 @@ pub(crate) async fn calibrate(
         CalibrationTarget::Resources { .. } => {
             let mut param_iterator = found_params.iter().sorted_by_key(|p| p.run_args.logrows);
 
-            let min_logrows = param_iterator.next().unwrap().run_args.logrows;
+            let min_logrows = param_iterator
+                .next()
+                .ok_or("no params found")?
+                .run_args
+                .logrows;
 
             // pick the ones that have the minimum logrows but also the largest scale:
             // this is the best tradeoff between resource usage and accuracy
@@ -807,7 +828,7 @@ pub(crate) async fn calibrate(
                         p.run_args.scale_rebase_multiplier,
                     )
                 })
-                .unwrap()
+                .ok_or("no params found")?
                 .clone()
         }
         CalibrationTarget::Accuracy => {
@@ -820,7 +841,7 @@ pub(crate) async fn calibrate(
                 )
             });
 
-            let last = param_iterator.last().unwrap();
+            let last = param_iterator.last().ok_or("no params found")?;
             let max_scale = (
                 last.run_args.input_scale,
                 last.run_args.param_scale,
@@ -839,7 +860,7 @@ pub(crate) async fn calibrate(
                     ) == max_scale
                 })
                 .min_by_key(|p| p.run_args.logrows)
-                .unwrap()
+                .ok_or("no params found")?
                 .clone()
         }
     };
@@ -878,7 +899,7 @@ pub(crate) async fn calibrate(
     Ok(())
 }
 
-pub(crate) async fn mock(
+pub(crate) fn mock(
     compiled_circuit_path: PathBuf,
     data_path: PathBuf,
 ) -> Result<(), Box<dyn Error>> {
@@ -923,7 +944,7 @@ pub(crate) fn render(model: PathBuf, output: PathBuf, args: RunArgs) -> Result<(
     // We could use SVGBackend if we want to render to .svg instead.
     // for an overview of how to interpret these plots, see https://zcash.github.io/halo2/user/dev-tools.html
     let root = BitMapBackend::new(&output, (512, 512)).into_drawing_area();
-    root.fill(&TRANSPARENT).unwrap();
+    root.fill(&TRANSPARENT)?;
     let root = root.titled("Layout", ("sans-serif", 20))?;
 
     halo2_proofs::dev::CircuitLayout::default()
@@ -957,12 +978,9 @@ pub(crate) fn create_evm_verifier(
         halo2_solidity_verifier::BatchOpenScheme::Bdfg21,
         num_instance,
     );
-    let verifier_solidity = generator.render().unwrap();
+    let verifier_solidity = generator.render()?;
 
-    File::create(sol_code_path.clone())
-        .unwrap()
-        .write_all(verifier_solidity.as_bytes())
-        .unwrap();
+    File::create(sol_code_path.clone())?.write_all(verifier_solidity.as_bytes())?;
 
     // fetch abi of the contract
     let (abi, _, _) = get_contract_artifacts(sol_code_path, "Halo2Verifier", 0)?;
@@ -1004,7 +1022,7 @@ pub(crate) fn create_evm_data_attestation(
 
     let output_data = if let Some(DataSource::OnChain(source)) = data.output_data {
         if visibility.output.is_private() {
-            todo!("private output data on chain is not supported on chain")
+            return Err("private output data on chain is not supported on chain".into());
         }
         let mut on_chain_output_data = vec![];
         for call in source.calls {
@@ -1017,7 +1035,7 @@ pub(crate) fn create_evm_data_attestation(
 
     let input_data = if let DataSource::OnChain(source) = data.input_data {
         if visibility.input.is_private() {
-            todo!("we currently don't support private input data on chain")
+            return Err("private input data on chain is not supported on chain".into());
         }
         let mut on_chain_input_data = vec![];
         for call in source.calls {
@@ -1122,7 +1140,9 @@ pub(crate) async fn verify_evm(
 
     info!("Solidity verification result: {}", result);
 
-    assert!(result);
+    if !result {
+        return Err("Solidity verification failed".into());
+    }
 
     Ok(())
 }
@@ -1138,10 +1158,12 @@ pub(crate) fn create_evm_aggregate_verifier(
     check_solc_requirement();
     let params: ParamsKZG<Bn256> = load_srs::<KZGCommitmentScheme<Bn256>>(srs_path)?;
 
-    let settings: Vec<GraphSettings> = circuit_settings
-        .iter()
-        .map(|path| GraphSettings::load(path).unwrap())
-        .collect::<Vec<_>>();
+    let mut settings: Vec<GraphSettings> = vec![];
+
+    for path in circuit_settings.iter() {
+        let s = GraphSettings::load(path)?;
+        settings.push(s);
+    }
 
     let num_instance: usize = settings
         .iter()
@@ -1169,12 +1191,9 @@ pub(crate) fn create_evm_aggregate_verifier(
 
     generator = generator.set_acc_encoding(Some(acc_encoding));
 
-    let verifier_solidity = generator.render().unwrap();
+    let verifier_solidity = generator.render()?;
 
-    File::create(sol_code_path.clone())
-        .unwrap()
-        .write_all(verifier_solidity.as_bytes())
-        .unwrap();
+    File::create(sol_code_path.clone())?.write_all(verifier_solidity.as_bytes())?;
 
     // fetch abi of the contract
     let (abi, _, _) = get_contract_artifacts(sol_code_path, "Halo2Verifier", 0)?;
@@ -1274,7 +1293,7 @@ pub(crate) async fn test_update_account_calls(
 
 #[cfg(not(target_arch = "wasm32"))]
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn prove(
+pub(crate) fn prove(
     data_path: PathBuf,
     compiled_circuit_path: PathBuf,
     pk_path: PathBuf,
@@ -1343,7 +1362,7 @@ pub(crate) async fn prove(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) async fn fuzz(
+pub(crate) fn fuzz(
     compiled_circuit_path: PathBuf,
     data_path: PathBuf,
     transcript: TranscriptType,
@@ -1358,7 +1377,7 @@ pub(crate) async fn fuzz(
 
     info!("setting up tests");
 
-    let _r = Gag::stdout().unwrap();
+    let _r = Gag::stdout()?;
     let params = gen_srs::<KZGCommitmentScheme<Bn256>>(logrows);
 
     let data = GraphWitness::from_path(data_path)?;
@@ -1382,7 +1401,7 @@ pub(crate) async fn fuzz(
 
         let bad_pk =
             create_keys::<KZGCommitmentScheme<Bn256>, Fr, GraphCircuit>(&circuit, &new_params)
-                .unwrap();
+                .map_err(|_| ())?;
 
         let bad_proof = create_proof_circuit_kzg(
             circuit.clone(),
@@ -1394,7 +1413,7 @@ pub(crate) async fn fuzz(
             CheckMode::UNSAFE,
             None,
         )
-        .unwrap();
+        .map_err(|_| ())?;
 
         verify_proof_circuit_kzg(
             params.verifier_params(),
@@ -1410,7 +1429,9 @@ pub(crate) async fn fuzz(
     info!("fuzzing public inputs");
 
     let fuzz_public_inputs = || {
-        let bad_inputs = vec![Fr::random(rand::rngs::OsRng); public_inputs.len()];
+        let bad_inputs: Vec<Fr> = (0..public_inputs.len())
+            .map(|_| Fr::random(rand::rngs::OsRng))
+            .collect();
 
         let bad_proof = create_proof_circuit_kzg(
             circuit.clone(),
@@ -1422,7 +1443,7 @@ pub(crate) async fn fuzz(
             CheckMode::UNSAFE,
             None,
         )
-        .unwrap();
+        .map_err(|_| ())?;
 
         verify_proof_circuit_kzg(
             params.verifier_params(),
@@ -1453,7 +1474,7 @@ pub(crate) async fn fuzz(
 
         let bad_pk =
             create_keys::<KZGCommitmentScheme<Bn256>, Fr, GraphCircuit>(&circuit, &new_params)
-                .unwrap();
+                .map_err(|_| ())?;
 
         let bad_vk = bad_pk.get_vk();
 
@@ -1499,9 +1520,14 @@ pub(crate) async fn fuzz(
     info!("fuzzing proof instances");
 
     let fuzz_proof_instances = || {
-        let mut bad_inputs = vec![];
+        let mut bad_inputs = vec![vec![]];
+
         for l in &proof.instances {
-            bad_inputs.push(vec![Fr::random(rand::rngs::OsRng); l.len()]);
+            bad_inputs.push(
+                (0..l.len())
+                    .map(|_| Fr::random(rand::rngs::OsRng))
+                    .collect(),
+            );
         }
 
         let bad_proof = Snark::<_, _> {
@@ -1562,7 +1588,7 @@ pub(crate) fn swap_proof_commitments(
     proof_path: PathBuf,
     witness: PathBuf,
 ) -> Result<(), Box<dyn Error>> {
-    let snark = Snark::load::<KZGCommitmentScheme<Bn256>>(&proof_path).unwrap();
+    let snark = Snark::load::<KZGCommitmentScheme<Bn256>>(&proof_path)?;
     let witness = GraphWitness::from_path(witness)?;
     let commitments = witness.get_kzg_commitments();
 
@@ -1576,7 +1602,7 @@ pub(crate) fn swap_proof_commitments(
         log::warn!("swap proof has created a different proof");
     }
 
-    snark_new.save(&proof_path).unwrap();
+    snark_new.save(&proof_path)?;
     Ok(())
 }
 
@@ -1637,6 +1663,7 @@ pub(crate) fn setup_aggregate(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn aggregate(
     proof_path: PathBuf,
     aggregation_snarks: Vec<PathBuf>,
@@ -1743,8 +1770,53 @@ pub(crate) fn verify_aggr(
     Ok(())
 }
 
+/// helper function to handle graphql errors
+async fn parse_response(
+    response: reqwest::Response,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    // Check if the response status is success
+    if !response.status().is_success() {
+        let status = response.status();
+        let error_message = format!("Request failed with status code: {}", status);
+        return Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            error_message,
+        )));
+    }
+
+    let response_body = response.json::<serde_json::Value>().await?;
+
+    // Check if 'data' is null and 'errors' are present
+    if response_body.get("data").is_none() || response_body.get("data").unwrap().is_null() {
+        if let Some(errors) = response_body.get("errors") {
+            let error_messages: Vec<String> = errors
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|error| error["message"].as_str().unwrap_or_default().to_string())
+                .collect();
+
+            let custom_error_message = format!("An error occurred: {}", error_messages.join(", "));
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                custom_error_message,
+            )));
+        } else {
+            let error_message =
+                "An error occurred: Response contains null data but no error details.";
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                error_message,
+            )));
+        }
+    }
+
+    Ok(response_body)
+}
+
 /// Retrieves the user's credentials from the hub
 pub(crate) async fn get_hub_credentials(
+    api_key: Option<&str>,
     url: Option<&str>,
     username: &str,
 ) -> Result<crate::hub::Organizations, Box<dyn Error>> {
@@ -1763,10 +1835,19 @@ pub(crate) async fn get_hub_credentials(
         }
     });
     let url = url.unwrap_or("https://hub-staging.ezkl.xyz/graphql");
+    let api_key = api_key.unwrap_or("ed896983-2ec3-4aaf-afa7-f01299f3d61f");
 
-    let response = client.post(url).json(&request_body).send().await?;
-    let response_body = response.json::<serde_json::Value>().await?;
+    let response = client
+        .post(url)
+        .header("API-Key", format!("{}", api_key))
+        .json(&request_body)
+        .send()
+        .await?;
 
+    // Using the parse_response helper function
+    let response_body = parse_response(response).await?;
+
+    // Extracting the organizations data
     let organizations: crate::hub::Organizations =
         serde_json::from_value(response_body["data"].clone())?;
 
@@ -1779,6 +1860,7 @@ pub(crate) async fn get_hub_credentials(
 
 /// Deploy a model
 pub(crate) async fn deploy_model(
+    api_key: Option<&str>,
     url: Option<&str>,
     model: &Path,
     input: &Path,
@@ -1828,6 +1910,8 @@ pub(crate) async fn deploy_model(
                 ) {
                     id
                     name
+                    status
+                    errors
                 }
             }",
         "variables": {
@@ -1854,25 +1938,69 @@ pub(crate) async fn deploy_model(
 
     let client = reqwest::Client::new();
     let url = url.unwrap_or("https://hub-staging.ezkl.xyz/graphql");
+    let api_key = api_key.unwrap_or("ed896983-2ec3-4aaf-afa7-f01299f3d61f");
     //send request
-    let response = client.post(url).multipart(form).send().await?;
-    let response_body = response.json::<serde_json::Value>().await?;
-    println!("{}", response_body.to_string());
-    let artifact_id: crate::hub::Artifact =
+    let response = client
+        .post(url)
+        .header("API-Key", format!("{}", api_key))
+        .multipart(form)
+        .send()
+        .await?;
+    let response_body = parse_response(response).await?;
+    let artifact_data: crate::hub::Artifact =
         serde_json::from_value(response_body["data"]["generateArtifact"].clone())?;
     log::info!(
-        "Artifact ID : {}",
-        artifact_id.as_json()?.to_colored_json_auto()?
+        "Artifact Data : {}",
+        artifact_data.as_json()?.to_colored_json_auto()?
     );
-    Ok(artifact_id)
+    Ok(artifact_data)
+}
+
+/// Get the artifact from the hub
+pub(crate) async fn get_deployed_model(
+    api_key: Option<&str>,
+    url: Option<&str>,
+    id: &str,
+) -> Result<crate::hub::Artifact, Box<dyn Error>> {
+    let query = serde_json::json!({
+        "query": "query getArtifact($id: String!){
+            artifact(id: $id) {
+                id
+                name
+                status
+                errors
+            }
+        }",
+        "variables": {
+            "id": id,
+        }
+    });
+    let client = reqwest::Client::new();
+    let url = url.unwrap_or("https://hub-staging.ezkl.xyz/graphql");
+    let api_key = api_key.unwrap_or("ed896983-2ec3-4aaf-afa7-f01299f3d61f");
+    //send request
+    let response = client
+        .post(url)
+        .header("API-Key", format!("{}", api_key))
+        .json(&query)
+        .send()
+        .await?;
+    let response_body = parse_response(response).await?;
+    let artifact_data: crate::hub::Artifact =
+        serde_json::from_value(response_body["data"]["artifact"].clone())?;
+    log::info!(
+        "Artifact Data : {}",
+        artifact_data.as_json()?.to_colored_json_auto()?
+    );
+    Ok(artifact_data)
 }
 
 /// Generates proofs on the hub
 pub async fn prove_hub(
+    api_key: Option<&str>,
     url: Option<&str>,
     id: &str,
     input: &Path,
-    transcript_type: Option<&str>,
 ) -> Result<crate::hub::Proof, Box<dyn std::error::Error>> {
     let input_file = tokio::fs::File::open(input.canonicalize()?).await?;
     let stream = FramedRead::new(input_file, BytesCodec::new());
@@ -1888,8 +2016,8 @@ pub async fn prove_hub(
 
     let operations = serde_json::json!({
         "query": r#"
-            mutation($input: Upload!, $id: String!, $transcriptType: String) {
-                initiateProof(input: $input, id: $id, transcriptType: $transcriptType) {
+            mutation($input: Upload!, $id: String!) {
+                initiateProof(input: $input, id: $id) {
                     id
                 }
             }
@@ -1897,7 +2025,6 @@ pub async fn prove_hub(
         "variables": {
             "input": null,
             "id": id,
-            "transcriptType": transcript_type.unwrap_or("evm"),
         }
     })
     .to_string();
@@ -1908,9 +2035,43 @@ pub async fn prove_hub(
         .text("map", map)
         .part("input", input_file);
     let url = url.unwrap_or("https://hub-staging.ezkl.xyz/graphql");
+    let api_key = api_key.unwrap_or("ed896983-2ec3-4aaf-afa7-f01299f3d61f");
     let client = reqwest::Client::new();
-    let response = client.post(url).multipart(form).send().await?;
-    let response_body = response.json::<serde_json::Value>().await?;
+    let response = client
+        .post(url)
+        .header("API-Key", format!("{}", api_key))
+        .multipart(form)
+        .send()
+        .await?;
+
+    let response_body = parse_response(response).await?;
+
+    // Check if 'data' is null and 'errors' are present
+    if response_body.get("data").is_none() || response_body.get("data").unwrap().is_null() {
+        if let Some(errors) = response_body.get("errors") {
+            let error_messages: Vec<String> = errors
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|error| error["message"].as_str().unwrap_or_default().to_string())
+                .collect();
+
+            let custom_error_message = format!("An error occurred: {}", error_messages.join(", "));
+            log::error!("{}", custom_error_message);
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                custom_error_message,
+            )));
+        } else {
+            let error_message =
+                "An error occurred: Response contains null data but no error details.";
+            log::error!("{}", error_message);
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                error_message,
+            )));
+        }
+    }
     let proof_id: crate::hub::Proof =
         serde_json::from_value(response_body["data"]["initiateProof"].clone())?;
     log::info!("Proof ID : {}", proof_id.as_json()?.to_colored_json_auto()?);
@@ -1919,6 +2080,7 @@ pub async fn prove_hub(
 
 /// Fetches proofs from the hub
 pub(crate) async fn get_hub_proof(
+    api_key: Option<&str>,
     url: Option<&str>,
     id: &str,
 ) -> Result<crate::hub::Proof, Box<dyn Error>> {
@@ -1933,15 +2095,20 @@ pub(crate) async fn get_hub_proof(
                     proof
                     instances
                     transcriptType
-                    strategy
                 }}
             }}
         "#, id),
     });
     let url = url.unwrap_or("https://hub-staging.ezkl.xyz/graphql");
+    let api_key = api_key.unwrap_or("ed896983-2ec3-4aaf-afa7-f01299f3d61f");
 
-    let response = client.post(url).json(&request_body).send().await?;
-    let response_body = response.json::<serde_json::Value>().await?;
+    let response = client
+        .post(url)
+        .header("API-Key", format!("{:?}", api_key))
+        .json(&request_body)
+        .send()
+        .await?;
+    let response_body = parse_response(response).await?;
 
     let proof: crate::hub::Proof =
         serde_json::from_value(response_body["data"]["getProof"].clone())?;

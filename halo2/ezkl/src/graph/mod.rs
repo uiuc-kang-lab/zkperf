@@ -25,7 +25,7 @@ use self::modules::{
 };
 use crate::circuit::lookup::LookupOp;
 use crate::circuit::modules::ModulePlanner;
-use crate::circuit::table::{Table, RANGE_MULTIPLIER, RESERVED_BLINDING_ROWS_PAD};
+use crate::circuit::table::{Table, RESERVED_BLINDING_ROWS_PAD};
 use crate::circuit::{CheckMode, InputType};
 use crate::tensor::{Tensor, ValTensor};
 use crate::RunArgs;
@@ -35,7 +35,7 @@ use halo2_proofs::{
 };
 use halo2curves::bn256::{self, Bn256, Fr as Fp, G1Affine};
 use halo2curves::ff::PrimeField;
-use log::{debug, error, info, trace};
+use log::{debug, error, info, trace, warn};
 pub use model::*;
 pub use node::*;
 #[cfg(feature = "python-bindings")]
@@ -54,6 +54,12 @@ pub use vars::*;
 
 #[cfg(feature = "python-bindings")]
 use crate::pfsys::field_to_vecu64_montgomery;
+
+/// The safety factor for the range of the lookup table.
+pub const RANGE_MULTIPLIER: i128 = 2;
+
+/// Max representation of a lookup table input
+pub const MAX_LOOKUP_ABS: i128 = 8 * 2_i128.pow(MAX_PUBLIC_SRS);
 
 /// circuit related errors.
 #[derive(Debug, Error)]
@@ -76,6 +82,9 @@ pub enum GraphError {
     /// This operation is unsupported
     #[error("unsupported operation in graph")]
     UnsupportedOp,
+    /// This operation is unsupported
+    #[error("unsupported datatype in graph")]
+    UnsupportedDataType,
     /// A node has missing parameters
     #[error("a node is missing required params: {0}")]
     MissingParams(String),
@@ -100,6 +109,12 @@ pub enum GraphError {
     /// Packing exponent is too large
     #[error("largest packing exponent exceeds max. try reducing the scale")]
     PackingExponent,
+    /// Invalid Input Types
+    #[error("invalid input types")]
+    InvalidInputTypes,
+    /// Missing results
+    #[error("missing results")]
+    MissingResults,
 }
 
 const ASSUMED_BLINDING_FACTORS: usize = 5;
@@ -108,6 +123,9 @@ pub const MIN_LOGROWS: u32 = 6;
 
 /// 26
 pub const MAX_PUBLIC_SRS: u32 = bn256::Fr::S - 2;
+
+/// Lookup deg
+pub const LOOKUP_DEG: usize = 5;
 
 use std::cell::RefCell;
 
@@ -244,13 +262,13 @@ impl ToPyObject for GraphWitness {
         if let Some(processed_inputs) = &self.processed_inputs {
             //poseidon_hash
             if let Some(processed_inputs_poseidon_hash) = &processed_inputs.poseidon_hash {
-                insert_poseidon_hash_pydict(&dict_inputs, &processed_inputs_poseidon_hash);
+                insert_poseidon_hash_pydict(&dict_inputs, &processed_inputs_poseidon_hash).unwrap();
             }
             if let Some(processed_inputs_elgamal) = &processed_inputs.elgamal {
-                insert_elgamal_results_pydict(py, dict_inputs, processed_inputs_elgamal);
+                insert_elgamal_results_pydict(py, dict_inputs, processed_inputs_elgamal).unwrap();
             }
             if let Some(processed_inputs_kzg_commit) = &processed_inputs.kzg_commit {
-                insert_kzg_commit_pydict(&dict_inputs, &processed_inputs_kzg_commit);
+                insert_kzg_commit_pydict(&dict_inputs, &processed_inputs_kzg_commit).unwrap();
             }
 
             dict.set_item("processed_inputs", dict_inputs).unwrap();
@@ -258,13 +276,13 @@ impl ToPyObject for GraphWitness {
 
         if let Some(processed_params) = &self.processed_params {
             if let Some(processed_params_poseidon_hash) = &processed_params.poseidon_hash {
-                insert_poseidon_hash_pydict(dict_params, &processed_params_poseidon_hash);
+                insert_poseidon_hash_pydict(dict_params, &processed_params_poseidon_hash).unwrap();
             }
             if let Some(processed_params_elgamal) = &processed_params.elgamal {
-                insert_elgamal_results_pydict(py, dict_params, processed_params_elgamal);
+                insert_elgamal_results_pydict(py, dict_params, processed_params_elgamal).unwrap();
             }
             if let Some(processed_params_kzg_commit) = &processed_params.kzg_commit {
-                insert_kzg_commit_pydict(&dict_inputs, &processed_params_kzg_commit);
+                insert_kzg_commit_pydict(&dict_inputs, &processed_params_kzg_commit).unwrap();
             }
 
             dict.set_item("processed_params", dict_params).unwrap();
@@ -272,13 +290,14 @@ impl ToPyObject for GraphWitness {
 
         if let Some(processed_outputs) = &self.processed_outputs {
             if let Some(processed_outputs_poseidon_hash) = &processed_outputs.poseidon_hash {
-                insert_poseidon_hash_pydict(dict_outputs, &processed_outputs_poseidon_hash);
+                insert_poseidon_hash_pydict(dict_outputs, &processed_outputs_poseidon_hash)
+                    .unwrap();
             }
             if let Some(processed_outputs_elgamal) = &processed_outputs.elgamal {
-                insert_elgamal_results_pydict(py, dict_outputs, processed_outputs_elgamal);
+                insert_elgamal_results_pydict(py, dict_outputs, processed_outputs_elgamal).unwrap();
             }
             if let Some(processed_outputs_kzg_commit) = &processed_outputs.kzg_commit {
-                insert_kzg_commit_pydict(&dict_inputs, &processed_outputs_kzg_commit);
+                insert_kzg_commit_pydict(&dict_inputs, &processed_outputs_kzg_commit).unwrap();
             }
 
             dict.set_item("processed_outputs", dict_outputs).unwrap();
@@ -289,28 +308,36 @@ impl ToPyObject for GraphWitness {
 }
 
 #[cfg(feature = "python-bindings")]
-fn insert_poseidon_hash_pydict(pydict: &PyDict, poseidon_hash: &Vec<Fp>) {
+fn insert_poseidon_hash_pydict(pydict: &PyDict, poseidon_hash: &Vec<Fp>) -> Result<(), PyErr> {
     let poseidon_hash: Vec<[u64; 4]> = poseidon_hash
         .iter()
         .map(field_to_vecu64_montgomery)
         .collect();
-    pydict.set_item("poseidon_hash", poseidon_hash).unwrap();
+    pydict.set_item("poseidon_hash", poseidon_hash)?;
+
+    Ok(())
 }
 
 #[cfg(feature = "python-bindings")]
-fn insert_kzg_commit_pydict(pydict: &PyDict, commits: &Vec<Vec<G1Affine>>) {
+fn insert_kzg_commit_pydict(pydict: &PyDict, commits: &Vec<Vec<G1Affine>>) -> Result<(), PyErr> {
     use crate::python::PyG1Affine;
     let poseidon_hash: Vec<Vec<PyG1Affine>> = commits
         .iter()
         .map(|c| c.iter().map(|x| PyG1Affine::from(*x)).collect())
         .collect();
-    pydict.set_item("kzg_commit", poseidon_hash).unwrap();
+    pydict.set_item("kzg_commit", poseidon_hash)?;
+
+    Ok(())
 }
 
 #[cfg(feature = "python-bindings")]
 use modules::ElGamalResult;
 #[cfg(feature = "python-bindings")]
-fn insert_elgamal_results_pydict(py: Python, pydict: &PyDict, elgamal_results: &ElGamalResult) {
+fn insert_elgamal_results_pydict(
+    py: Python,
+    pydict: &PyDict,
+    elgamal_results: &ElGamalResult,
+) -> Result<(), PyErr> {
     let results_dict = PyDict::new(py);
     let cipher_text: Vec<Vec<[u64; 4]>> = elgamal_results
         .ciphertexts
@@ -321,7 +348,7 @@ fn insert_elgamal_results_pydict(py: Python, pydict: &PyDict, elgamal_results: &
                 .collect::<Vec<[u64; 4]>>()
         })
         .collect::<Vec<Vec<[u64; 4]>>>();
-    results_dict.set_item("ciphertexts", cipher_text).unwrap();
+    results_dict.set_item("ciphertexts", cipher_text)?;
 
     let encrypted_messages: Vec<Vec<[u64; 4]>> = elgamal_results
         .encrypted_messages
@@ -332,15 +359,15 @@ fn insert_elgamal_results_pydict(py: Python, pydict: &PyDict, elgamal_results: &
                 .collect::<Vec<[u64; 4]>>()
         })
         .collect::<Vec<Vec<[u64; 4]>>>();
-    results_dict
-        .set_item("encrypted_messages", encrypted_messages)
-        .unwrap();
+    results_dict.set_item("encrypted_messages", encrypted_messages)?;
 
     let variables: crate::python::PyElGamalVariables = elgamal_results.variables.clone().into();
 
-    results_dict.set_item("variables", variables).unwrap();
+    results_dict.set_item("variables", variables)?;
 
-    pydict.set_item("elgamal", results_dict).unwrap();
+    pydict.set_item("elgamal", results_dict)?;
+
+    Ok(())
 
     //elgamal
 }
@@ -426,17 +453,34 @@ impl GraphSettings {
 
     ///
     pub fn available_col_size(&self) -> usize {
+        let base = 2u32;
         if let Some(num_blinding_factors) = self.num_blinding_factors {
-            let base = 2u32;
             base.pow(self.run_args.logrows) as usize - num_blinding_factors - 1
         } else {
-            panic!("num_blinding_factors not set")
+            log::error!("num_blinding_factors not set");
+            log::warn!("using default available_col_size");
+            base.pow(self.run_args.logrows) as usize - ASSUMED_BLINDING_FACTORS - 1
         }
     }
 
     ///
     pub fn uses_modules(&self) -> bool {
         !self.module_sizes.max_constraints() > 0
+    }
+
+    /// if any visibility is encrypted or hashed
+    pub fn module_requires_fixed(&self) -> bool {
+        if self.run_args.input_visibility.is_encrypted()
+            || self.run_args.input_visibility.is_hashed()
+            || self.run_args.output_visibility.is_encrypted()
+            || self.run_args.output_visibility.is_hashed()
+            || self.run_args.param_visibility.is_encrypted()
+            || self.run_args.param_visibility.is_hashed()
+        {
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -491,17 +535,16 @@ impl GraphCircuit {
     ///
     pub fn load(path: std::path::PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
         // read bytes from file
-        let mut f = std::fs::File::open(&path)
-            .unwrap_or_else(|_| panic!("failed to load model at {}", path.display()));
-        let metadata = std::fs::metadata(&path).expect("unable to read metadata");
+        let mut f = std::fs::File::open(&path)?;
+        let metadata = std::fs::metadata(&path)?;
         let mut buffer = vec![0; metadata.len() as usize];
-        f.read_exact(&mut buffer).expect("buffer overflow");
+        f.read_exact(&mut buffer)?;
         let result = bincode::deserialize(&buffer)?;
         Ok(result)
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, PartialOrd)]
 /// The data source for a test
 pub enum TestDataSource {
     /// The data is loaded from a file
@@ -516,7 +559,11 @@ impl From<String> for TestDataSource {
         match value.to_lowercase().as_str() {
             "file" => TestDataSource::File,
             "on-chain" => TestDataSource::OnChain,
-            _ => panic!("not a valid test data source"),
+            _ => {
+                error!("invalid data source: {}", value);
+                warn!("using default data source: on-chain");
+                TestDataSource::default()
+            }
         }
     }
 }
@@ -549,7 +596,7 @@ impl GraphCircuit {
     ) -> Result<GraphCircuit, Box<dyn std::error::Error>> {
         // // placeholder dummy inputs - must call prepare_public_inputs to load data afterwards
         let mut inputs: Vec<Vec<Fp>> = vec![];
-        for shape in model.graph.input_shapes() {
+        for shape in model.graph.input_shapes()? {
             let t: Vec<Fp> = vec![Fp::zero(); shape.iter().product::<usize>()];
             inputs.push(t);
         }
@@ -566,10 +613,10 @@ impl GraphCircuit {
         }
 
         let sizes = GraphModules::num_constraints_and_instances(
-            model.graph.input_shapes(),
+            model.graph.input_shapes()?,
             vec![vec![num_params]],
-            model.graph.output_shapes(),
-            VarVisibility::from_args(run_args).unwrap(),
+            model.graph.output_shapes()?,
+            VarVisibility::from_args(run_args)?,
         );
 
         // number of instances used by modules
@@ -598,7 +645,7 @@ impl GraphCircuit {
     ) -> Result<GraphCircuit, Box<dyn std::error::Error>> {
         // placeholder dummy inputs - must call prepare_public_inputs to load data afterwards
         let mut inputs: Vec<Vec<Fp>> = vec![];
-        for shape in model.graph.input_shapes() {
+        for shape in model.graph.input_shapes()? {
             let t: Vec<Fp> = vec![Fp::zero(); shape.iter().product::<usize>()];
             inputs.push(t);
         }
@@ -668,10 +715,28 @@ impl GraphCircuit {
         &mut self,
         data: &GraphData,
     ) -> Result<Vec<Tensor<Fp>>, Box<dyn std::error::Error>> {
-        let shapes = self.model().graph.input_shapes();
+        let shapes = self.model().graph.input_shapes()?;
         let scales = self.model().graph.get_input_scales();
-        let input_types = self.model().graph.get_input_types();
+        let input_types = self.model().graph.get_input_types()?;
         self.process_data_source(&data.input_data, shapes, scales, input_types)
+    }
+
+    ///
+    pub fn load_graph_from_file_exclusively(
+        &mut self,
+        data: &GraphData,
+    ) -> Result<Vec<Tensor<Fp>>, Box<dyn std::error::Error>> {
+        let shapes = self.model().graph.input_shapes()?;
+        let scales = self.model().graph.get_input_scales();
+        let input_types = self.model().graph.get_input_types()?;
+        info!("input scales: {:?}", scales);
+
+        match &data.input_data {
+            DataSource::File(file_data) => {
+                self.load_file_data(file_data, &shapes, scales, input_types)
+            }
+            _ => Err("Cannot use non-file data source as input for this method.".into()),
+        }
     }
 
     ///
@@ -680,9 +745,9 @@ impl GraphCircuit {
         &mut self,
         data: &GraphData,
     ) -> Result<Vec<Tensor<Fp>>, Box<dyn std::error::Error>> {
-        let shapes = self.model().graph.input_shapes();
+        let shapes = self.model().graph.input_shapes()?;
         let scales = self.model().graph.get_input_scales();
-        let input_types = self.model().graph.get_input_types();
+        let input_types = self.model().graph.get_input_types()?;
         info!("input scales: {:?}", scales);
 
         self.process_data_source(&data.input_data, shapes, scales, input_types)
@@ -703,7 +768,7 @@ impl GraphCircuit {
                 self.load_file_data(file_data, &shapes, scales, input_types)
             }
             DataSource::OnChain(_) => {
-                panic!("Cannot use non-file data source as input for wasm rn.")
+                Err("Cannot use on-chain data source as input for this method.".into())
             }
         }
     }
@@ -753,7 +818,7 @@ impl GraphCircuit {
         let mut inputs: Vec<Tensor<Fp>> = vec![];
         for (input, shape) in [quantized_evm_inputs].iter().zip(shapes) {
             let mut t: Tensor<Fp> = input.iter().cloned().collect();
-            t.reshape(shape);
+            t.reshape(shape)?;
             inputs.push(t);
         }
 
@@ -786,7 +851,7 @@ impl GraphCircuit {
                 .collect();
 
             let mut t: Tensor<Fp> = t.into_iter().into();
-            t.reshape(shape);
+            t.reshape(shape)?;
 
             data.push(t);
         }
@@ -803,7 +868,7 @@ impl GraphCircuit {
         let mut data: Vec<Tensor<Fp>> = vec![];
         for (d, shape) in file_data.iter().zip(shapes) {
             let mut t: Tensor<Fp> = d.clone().into_iter().into();
-            t.reshape(shape);
+            t.reshape(shape)?;
             data.push(t);
         }
         Ok(data)
@@ -820,6 +885,14 @@ impl GraphCircuit {
         )
     }
 
+    fn calc_num_cols(safe_range: (i128, i128), max_logrows: u32) -> usize {
+        let max_col_size = Table::<Fp>::cal_col_size(
+            max_logrows as usize,
+            Self::reserved_blinding_rows() as usize,
+        );
+        Table::<Fp>::num_cols_required(safe_range, max_col_size)
+    }
+
     fn calc_min_logrows(
         &mut self,
         res: &GraphWitness,
@@ -828,22 +901,47 @@ impl GraphCircuit {
         // load the max logrows
         let max_logrows = max_logrows.unwrap_or(MAX_PUBLIC_SRS);
         let max_logrows = std::cmp::min(max_logrows, MAX_PUBLIC_SRS);
-        let max_logrows = std::cmp::max(max_logrows, MIN_LOGROWS);
+        let mut max_logrows = std::cmp::max(max_logrows, MIN_LOGROWS);
 
         let reserved_blinding_rows = Self::reserved_blinding_rows();
+        // check if has overflowed max lookup input
+        if res.max_lookup_inputs > MAX_LOOKUP_ABS / RANGE_MULTIPLIER
+            || res.min_lookup_inputs < -MAX_LOOKUP_ABS / RANGE_MULTIPLIER
+        {
+            let err_string = format!("max lookup input ({}) is too large", res.max_lookup_inputs);
+            return Err(err_string.into());
+        }
+
         let safe_range = Self::calc_safe_range(res);
+        let mut min_logrows = MIN_LOGROWS;
+        // degrade the max logrows until the extended k is small enough
+        while min_logrows < max_logrows
+            && !self.extended_k_is_small_enough(
+                min_logrows,
+                Self::calc_num_cols(safe_range, min_logrows),
+            )
+        {
+            min_logrows += 1;
+        }
 
-        let max_col_size =
-            Table::<Fp>::cal_col_size(max_logrows as usize, reserved_blinding_rows as usize);
-        let num_cols = Table::<Fp>::num_cols_required(safe_range, max_col_size);
-
-        // empirically determined that this is when performance starts to degrade significantly
-        if num_cols > 4 {
+        if !self
+            .extended_k_is_small_enough(min_logrows, Self::calc_num_cols(safe_range, min_logrows))
+        {
             let err_string = format!(
-                "No possible lookup range can accomodate max value min and max value ({}, {})",
-                safe_range.0, safe_range.1
+                "extended k is too large to accomodate the quotient polynomial with logrows {}",
+                min_logrows
             );
             return Err(err_string.into());
+        }
+
+        // degrade the max logrows until the extended k is small enough
+        while max_logrows > min_logrows
+            && !self.extended_k_is_small_enough(
+                max_logrows,
+                Self::calc_num_cols(safe_range, max_logrows),
+            )
+        {
+            max_logrows -= 1;
         }
 
         let min_bits = ((safe_range.1 - safe_range.0) as f64 + reserved_blinding_rows + 1.)
@@ -862,7 +960,7 @@ impl GraphCircuit {
         {
             let mut max_instance_len = self
                 .model()
-                .instance_shapes()
+                .instance_shapes()?
                 .iter()
                 .fold(0, |acc, x| std::cmp::max(acc, x.iter().product::<usize>()))
                 as f64
@@ -882,8 +980,9 @@ impl GraphCircuit {
         }
 
         // ensure logrows is at least 4
-        logrows = std::cmp::max(logrows, MIN_LOGROWS as usize);
+        logrows = std::cmp::max(logrows, min_logrows as usize);
         logrows = std::cmp::min(logrows, max_logrows as usize);
+
         let model = self.model().clone();
         let settings_mut = self.settings_mut();
         settings_mut.run_args.lookup_range = safe_range;
@@ -914,6 +1013,22 @@ impl GraphCircuit {
         );
 
         Ok(())
+    }
+
+    fn extended_k_is_small_enough(&self, k: u32, num_lookup_cols: usize) -> bool {
+        let max_degree = self.settings().run_args.num_inner_cols + 2;
+        let max_lookup_degree = LOOKUP_DEG + num_lookup_cols - 1; // num_lookup_cols - 1 is the degree of the lookup synthetic selector
+
+        let max_degree = std::cmp::max(max_degree, max_lookup_degree);
+        // quotient_poly_degree * params.n - 1 is the degree of the quotient polynomial
+        let quotient_poly_degree = (max_degree - 1) as u64;
+        // n = 2^k
+        let n = 1u64 << k;
+        let mut extended_k = k;
+        while (1 << extended_k) < (n * quotient_poly_degree) {
+            extended_k += 1;
+        }
+        extended_k <= bn256::Fr::S
     }
 
     /// Calibrate the circuit to the supplied data.
@@ -1043,6 +1158,7 @@ impl GraphCircuit {
         model_path: &std::path::Path,
         check_mode: CheckMode,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        params.run_args.validate()?;
         let model = Model::from_run_args(&params.run_args, model_path)?;
         Self::new_from_settings(model, params.clone(), check_mode)
     }
@@ -1067,10 +1183,11 @@ impl GraphCircuit {
 
             let input_data = match &data.input_data {
                 DataSource::File(input_data) => input_data,
-                _ => panic!(
-                    "Cannot use non file source as input for on-chain test.
+                _ => {
+                    return Err("Cannot use non file source as input for on-chain test.
                     Manually populate on-chain data from file source instead"
-                ),
+                        .into())
+                }
             };
             // Get the flatten length of input_data
             // if the input source is a field then set scale to 0
@@ -1078,7 +1195,7 @@ impl GraphCircuit {
             let datam: (Vec<Tensor<Fp>>, OnChainSource) = OnChainSource::test_from_file_data(
                 input_data,
                 self.model().graph.get_input_scales(),
-                self.model().graph.input_shapes(),
+                self.model().graph.input_shapes()?,
                 test_on_chain_data.rpc.as_deref(),
             )
             .await?;
@@ -1095,16 +1212,19 @@ impl GraphCircuit {
 
             let output_data = match &data.output_data {
                 Some(DataSource::File(output_data)) => output_data,
-                Some(DataSource::OnChain(_)) => panic!(
-                    "Cannot use on-chain data source as output for on-chain test. 
+                Some(DataSource::OnChain(_)) => {
+                    return Err(
+                        "Cannot use on-chain data source as output for on-chain test. 
                     Will manually populate on-chain data from file source instead"
-                ),
-                _ => panic!("No output data to populate"),
+                            .into(),
+                    )
+                }
+                _ => return Err("No output data found".into()),
             };
             let datum: (Vec<Tensor<Fp>>, OnChainSource) = OnChainSource::test_from_file_data(
                 output_data,
-                self.model().graph.get_output_scales(),
-                self.model().graph.output_shapes(),
+                self.model().graph.get_output_scales()?,
+                self.model().graph.output_shapes()?,
                 test_on_chain_data.rpc.as_deref(),
             )
             .await?;
@@ -1170,7 +1290,14 @@ impl Circuit<Fp> for GraphCircuit {
         GLOBAL_SETTINGS.with(|settings| {
             *settings.borrow_mut() = Some(params.clone());
         });
-        let visibility = VarVisibility::from_args(&params.run_args).unwrap();
+        let visibility = match VarVisibility::from_args(&params.run_args) {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("failed to create visibility: {:?}", e);
+                log::warn!("using default visibility");
+                VarVisibility::default()
+            }
+        };
 
         let mut module_configs = ModuleConfigs::from_visibility(
             cs,
@@ -1184,7 +1311,7 @@ impl Circuit<Fp> for GraphCircuit {
             params.total_assignments,
             params.run_args.num_inner_cols,
             params.total_const_size,
-            params.uses_modules(),
+            params.module_requires_fixed(),
         );
 
         module_configs.configure_complex_modules(cs, visibility, params.module_sizes.clone());
@@ -1208,8 +1335,9 @@ impl Circuit<Fp> for GraphCircuit {
 
         let model_config = ModelConfig { base, vars };
 
-        trace!(
-            "log2_ceil of degrees {:?}",
+        debug!(
+            "degree: {}, log2_ceil of degrees: {:?}",
+            cs.degree(),
             (cs.degree() as f32).log2().ceil()
         );
 
@@ -1251,9 +1379,12 @@ impl Circuit<Fp> for GraphCircuit {
             .iter_mut()
             .map(|i| {
                 i.set_visibility(input_vis);
-                ValTensor::from(i.clone())
+                ValTensor::try_from(i.clone()).map_err(|e| {
+                    log::error!("failed to convert input to valtensor: {:?}", e);
+                    PlonkError::Synthesis
+                })
             })
-            .collect::<Vec<ValTensor<Fp>>>();
+            .collect::<Result<Vec<ValTensor<Fp>>, PlonkError>>()?;
 
         let outputs = self
             .graph_witness
@@ -1261,9 +1392,12 @@ impl Circuit<Fp> for GraphCircuit {
             .iter_mut()
             .map(|i| {
                 i.set_visibility(output_vis);
-                ValTensor::from(i.clone())
+                ValTensor::try_from(i.clone()).map_err(|e| {
+                    log::error!("failed to convert output to valtensor: {:?}", e);
+                    PlonkError::Synthesis
+                })
             })
-            .collect::<Vec<ValTensor<Fp>>>();
+            .collect::<Result<Vec<ValTensor<Fp>>, PlonkError>>()?;
 
         let mut instance_offset = 0;
         trace!("running input module layout");
@@ -1319,7 +1453,10 @@ impl Circuit<Fp> for GraphCircuit {
                         PlonkError::Synthesis
                     })?;
                 t.set_visibility(param_visibility);
-                vec![t.into()]
+                vec![t.try_into().map_err(|_| {
+                    log::error!("failed to convert params to valtensor");
+                    PlonkError::Synthesis
+                })?]
             };
 
             // now do stuff to the model params

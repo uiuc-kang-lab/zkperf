@@ -12,9 +12,9 @@ mod wasm32 {
     use ezkl::wasm::{
         bufferToVecOfVecU64, compiledCircuitValidation, elgamalDecrypt, elgamalEncrypt,
         elgamalGenRandom, encodeVerifierCalldata, genPk, genVk, genWitness, inputValidation,
-        pkValidation, poseidonHash, proofValidation, prove, settingsValidation, srsValidation,
-        u8_array_to_u128_le, vecU64ToFelt, vecU64ToFloat, vecU64ToInt, verify, vkValidation,
-        witnessValidation,
+        pkValidation, poseidonHash, printProofHex, proofValidation, prove, settingsValidation,
+        srsValidation, u8_array_to_u128_le, vecU64ToFelt, vecU64ToFloat, vecU64ToInt, verify,
+        vkValidation, witnessValidation,
     };
     use halo2_solidity_verifier::encode_calldata;
     use halo2curves::bn256::{Fr, G1Affine};
@@ -27,14 +27,14 @@ mod wasm32 {
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
-    pub const WITNESS: &[u8] = include_bytes!("../tests/wasm/test.witness.json");
-    pub const NETWORK_COMPILED: &[u8] = include_bytes!("../tests/wasm/test_network.compiled");
+    pub const WITNESS: &[u8] = include_bytes!("../tests/wasm/witness.json");
+    pub const NETWORK_COMPILED: &[u8] = include_bytes!("../tests/wasm/network.compiled");
     pub const NETWORK: &[u8] = include_bytes!("../tests/wasm/network.onnx");
     pub const INPUT: &[u8] = include_bytes!("../tests/wasm/input.json");
     pub const PROOF: &[u8] = include_bytes!("../tests/wasm/test.proof");
     pub const SETTINGS: &[u8] = include_bytes!("../tests/wasm/settings.json");
-    pub const PK: &[u8] = include_bytes!("../tests/wasm/test.provekey");
-    pub const VK: &[u8] = include_bytes!("../tests/wasm/test.key");
+    pub const PK: &[u8] = include_bytes!("../tests/wasm/pk.key");
+    pub const VK: &[u8] = include_bytes!("../tests/wasm/vk.key");
     pub const SRS: &[u8] = include_bytes!("../tests/wasm/kzg");
 
     #[wasm_bindgen_test]
@@ -317,6 +317,15 @@ mod wasm32 {
     }
 
     #[wasm_bindgen_test]
+    async fn print_proof_hex_test() {
+        let proof = printProofHex(wasm_bindgen::Clamped(PROOF.to_vec()))
+            .map_err(|_| "failed")
+            .unwrap();
+
+        assert!(proof.len() > 0);
+    }
+
+    #[wasm_bindgen_test]
     async fn verify_validations() {
         // Run witness validation on network (should fail)
         let witness = witnessValidation(wasm_bindgen::Clamped(NETWORK_COMPILED.to_vec()));
@@ -366,6 +375,7 @@ mod wasm32 {
             wasm_bindgen::Clamped(PK.to_vec()),
             wasm_bindgen::Clamped(SETTINGS.to_vec()),
         );
+
         assert!(pk.is_ok());
         // Run settings validation on proof (should fail)
         let settings = settingsValidation(wasm_bindgen::Clamped(PROOF.to_vec()));

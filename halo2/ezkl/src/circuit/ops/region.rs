@@ -1,4 +1,4 @@
-use crate::tensor::{Tensor, TensorType, ValTensor, ValType, VarTensor};
+use crate::tensor::{Tensor, TensorError, TensorType, ValTensor, ValType, VarTensor};
 use halo2_proofs::{
     circuit::Region,
     plonk::{Error, Selector},
@@ -9,6 +9,44 @@ use std::{
     collections::HashSet,
     sync::atomic::{AtomicUsize, Ordering},
 };
+
+/// Region error
+#[derive(Debug, thiserror::Error)]
+pub enum RegionError {
+    /// wrap other regions
+    #[error("Wrapped region: {0}")]
+    Wrapped(String),
+}
+
+impl From<String> for RegionError {
+    fn from(e: String) -> Self {
+        Self::Wrapped(e)
+    }
+}
+
+impl From<&str> for RegionError {
+    fn from(e: &str) -> Self {
+        Self::Wrapped(e.to_string())
+    }
+}
+
+impl From<TensorError> for RegionError {
+    fn from(e: TensorError) -> Self {
+        Self::Wrapped(format!("{:?}", e))
+    }
+}
+
+impl From<Error> for RegionError {
+    fn from(e: Error) -> Self {
+        Self::Wrapped(format!("{:?}", e))
+    }
+}
+
+impl From<Box<dyn std::error::Error>> for RegionError {
+    fn from(e: Box<dyn std::error::Error>) -> Self {
+        Self::Wrapped(format!("{:?}", e))
+    }
+}
 
 #[derive(Debug)]
 /// A context for a region
@@ -21,6 +59,11 @@ pub struct RegionCtx<'a, F: PrimeField + TensorType + PartialOrd> {
 }
 
 impl<'a, F: PrimeField + TensorType + PartialOrd> RegionCtx<'a, F> {
+    ///
+    pub fn increment_total_constants(&mut self, n: usize) {
+        self.total_constants += n;
+    }
+
     /// Create a new region context
     pub fn new(region: Region<'a, F>, row: usize, num_inner_cols: usize) -> RegionCtx<'a, F> {
         let region = Some(RefCell::new(region));
@@ -81,41 +124,83 @@ impl<'a, F: PrimeField + TensorType + PartialOrd> RegionCtx<'a, F> {
         }
     }
 
+    /// Apply a function in a loop to the region
+    pub fn apply_in_loop<T: TensorType + Send + Sync>(
+        &mut self,
+        output: &mut Tensor<T>,
+        inner_loop_function: impl Fn(usize, &mut RegionCtx<'a, F>) -> Result<T, RegionError>
+            + Send
+            + Sync,
+    ) -> Result<(), RegionError> {
+        if self.is_dummy() {
+            self.dummy_loop(output, inner_loop_function)?;
+        } else {
+            self.real_loop(output, inner_loop_function)?;
+        }
+        Ok(())
+    }
+
+    /// Run a loop
+    pub fn real_loop<T: TensorType + Send + Sync>(
+        &mut self,
+        output: &mut Tensor<T>,
+        inner_loop_function: impl Fn(usize, &mut RegionCtx<'a, F>) -> Result<T, RegionError>,
+    ) -> Result<(), RegionError> {
+        output
+            .iter_mut()
+            .enumerate()
+            .map(|(i, o)| {
+                *o = inner_loop_function(i, self)?;
+                Ok(())
+            })
+            .collect::<Result<Vec<_>, RegionError>>()?;
+
+        Ok(())
+    }
+
     /// Create a new region context per loop iteration
     /// hacky but it works
     pub fn dummy_loop<T: TensorType + Send + Sync>(
         &mut self,
         output: &mut Tensor<T>,
-        inner_loop_function: impl Fn(usize, &mut RegionCtx<'a, F>) -> T + Sync + Send,
-    ) -> Result<(), Error> {
+        inner_loop_function: impl Fn(usize, &mut RegionCtx<'a, F>) -> Result<T, RegionError>
+            + Send
+            + Sync,
+    ) -> Result<(), RegionError> {
         let row = AtomicUsize::new(self.row());
         let linear_coord = AtomicUsize::new(self.linear_coord());
         let constants = AtomicUsize::new(self.total_constants());
-        *output = output.par_enum_map(|idx, _| {
-            // we kick off the loop with the current offset
-            let starting_offset = row.load(Ordering::Relaxed);
-            let starting_linear_coord = linear_coord.load(Ordering::Relaxed);
-            let starting_constants = constants.load(Ordering::Relaxed);
-            // we need to make sure that the region is not shared between threads
-            let mut local_reg = Self::new_dummy_with_constants(
-                starting_offset,
-                starting_linear_coord,
-                starting_constants,
-                self.num_inner_cols,
-            );
-            let res = inner_loop_function(idx, &mut local_reg);
-            // we update the offset and constants
-            row.fetch_add(local_reg.row() - starting_offset, Ordering::Relaxed);
-            linear_coord.fetch_add(
-                local_reg.linear_coord() - starting_linear_coord,
-                Ordering::Relaxed,
-            );
-            constants.fetch_add(
-                local_reg.total_constants() - starting_constants,
-                Ordering::Relaxed,
-            );
-            Ok::<_, Error>(res)
-        })?;
+
+        *output = output
+            .par_enum_map(|idx, _| {
+                // we kick off the loop with the current offset
+                let starting_offset = row.load(Ordering::SeqCst);
+                let starting_linear_coord = linear_coord.load(Ordering::SeqCst);
+                let starting_constants = constants.load(Ordering::SeqCst);
+                // we need to make sure that the region is not shared between threads
+                let mut local_reg = Self::new_dummy_with_constants(
+                    starting_offset,
+                    starting_linear_coord,
+                    starting_constants,
+                    self.num_inner_cols,
+                );
+                let res = inner_loop_function(idx, &mut local_reg);
+                // we update the offset and constants
+                row.fetch_add(local_reg.row() - starting_offset, Ordering::SeqCst);
+                linear_coord.fetch_add(
+                    local_reg.linear_coord() - starting_linear_coord,
+                    Ordering::SeqCst,
+                );
+                constants.fetch_add(
+                    local_reg.total_constants() - starting_constants,
+                    Ordering::SeqCst,
+                );
+                res
+            })
+            .map_err(|e| {
+                log::error!("dummy_loop: {:?}", e);
+                Error::Synthesis
+            })?;
         self.total_constants = constants.into_inner();
         self.linear_coord = linear_coord.into_inner();
         self.row = row.into_inner();
@@ -211,14 +296,16 @@ impl<'a, F: PrimeField + TensorType + PartialOrd> RegionCtx<'a, F> {
     ) -> Result<(ValTensor<F>, usize), Error> {
         if let Some(region) = &self.region {
             // duplicates every nth element to adjust for column overflow
-            var.assign_with_duplication(
+            let (res, len, total_assigned_constants) = var.assign_with_duplication(
                 &mut region.borrow_mut(),
                 self.row,
                 self.linear_coord,
                 values,
                 check_mode,
                 single_inner_col,
-            )
+            )?;
+            self.total_constants += total_assigned_constants;
+            Ok((res, len))
         } else {
             let (_, len, total_assigned_constants) = var.dummy_assign_with_duplication(
                 self.row,
@@ -244,15 +331,18 @@ impl<'a, F: PrimeField + TensorType + PartialOrd> RegionCtx<'a, F> {
         if let Some(region) = &self.region {
             let a = a.get_inner_tensor().unwrap();
             let b = b.get_inner_tensor().unwrap();
+            assert_eq!(a.len(), b.len());
             a.iter().zip(b.iter()).try_for_each(|(a, b)| {
                 let a = a.get_prev_assigned();
                 let b = b.get_prev_assigned();
                 // if they're both assigned, we can constrain them
                 if let (Some(a), Some(b)) = (&a, &b) {
                     region.borrow_mut().constrain_equal(a.cell(), b.cell())
-                // if one is Some and the other is None -- panic
                 } else if a.is_some() || b.is_some() {
-                    panic!("constrain_equal: one of the tensors is assigned and the other is not")
+                    log::error!(
+                        "constrain_equal: one of the tensors is assigned and the other is not"
+                    );
+                    return Err(Error::Synthesis);
                 } else {
                     Ok(())
                 }
@@ -278,14 +368,17 @@ impl<'a, F: PrimeField + TensorType + PartialOrd> RegionCtx<'a, F> {
     }
 
     /// flush row to the next row
-    pub fn flush(&mut self) {
+    pub fn flush(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // increment by the difference between the current linear coord and the next row
         let remainder = self.linear_coord % self.num_inner_cols;
         if remainder != 0 {
             let diff = self.num_inner_cols - remainder;
             self.increment(diff);
         }
-        assert!(self.linear_coord % self.num_inner_cols == 0);
+        if !(self.linear_coord % self.num_inner_cols == 0) {
+            return Err("flush: linear coord is not aligned with the next row".into());
+        }
+        Ok(())
     }
 
     /// increment constants

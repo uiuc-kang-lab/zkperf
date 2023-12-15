@@ -47,11 +47,12 @@ pub fn iff<
     b: &Tensor<T>,
 ) -> Result<Tensor<T>, TensorError> {
     // assert is boolean
-    assert!(
-        mask.par_iter()
-            .all(|x| *x == T::one().unwrap() || *x == T::zero().unwrap()),
-        "iff() only works on boolean mask"
-    );
+    if !mask
+        .par_iter()
+        .all(|x| *x == T::one().unwrap() || *x == T::zero().unwrap())
+    {
+        return Err(TensorError::WrongMethod);
+    }
 
     let masked_a = (mask.clone() * a.clone())?;
 
@@ -127,12 +128,12 @@ pub fn or<
     a: &Tensor<T>,
     b: &Tensor<T>,
 ) -> Result<Tensor<T>, TensorError> {
-    // assert is boolean
-    assert!(
-        b.par_iter()
-            .all(|x| *x == T::one().unwrap() || *x == T::zero().unwrap()),
-        "or() only works on boolean mask"
-    );
+    if !b
+        .par_iter()
+        .all(|x| *x == T::one().unwrap() || *x == T::zero().unwrap())
+    {
+        return Err(TensorError::WrongMethod);
+    }
 
     iff(a, a, b)
 }
@@ -208,17 +209,20 @@ pub fn and<
     b: &Tensor<T>,
 ) -> Result<Tensor<T>, TensorError> {
     // assert is boolean
-    assert!(
-        b.par_iter()
-            .all(|x| *x == T::one().unwrap() || *x == T::zero().unwrap()),
-        "and() only works on boolean values"
-    );
+    if !b
+        .par_iter()
+        .all(|x| *x == T::one().unwrap() || *x == T::zero().unwrap())
+    {
+        return Err(TensorError::WrongMethod);
+    }
 
-    assert!(
-        a.par_iter()
-            .all(|x| *x == T::one().unwrap() || *x == T::zero().unwrap()),
-        "and() only works on boolean values"
-    );
+    // assert is boolean
+    if !a
+        .par_iter()
+        .all(|x| *x == T::one().unwrap() || *x == T::zero().unwrap())
+    {
+        return Err(TensorError::WrongMethod);
+    }
 
     a.clone() * b.clone()
 }
@@ -659,7 +663,24 @@ pub fn resize<T: TensorType + Send + Sync>(
 /// let expected = Tensor::<i128>::new(Some(&[41, 68]), &[2, 1]).unwrap();
 /// assert_eq!(result, expected);
 ///
-/// ```
+/// let x = Tensor::<i128>::new(
+///    Some(&[0, 0, 0, 3]),
+///  &[1, 4],
+/// ).unwrap();
+/// let k = Tensor::<i128>::new(
+///    Some(&[213, 227, 74, 77]),
+///  &[4],
+/// ).unwrap();
+///
+/// let result = einsum("mk,k->ma", &[x.clone(), k.clone()]).unwrap();
+/// let expected = Tensor::<i128>::new(Some(&[231]), &[1, 1]).unwrap();
+/// assert_eq!(result, expected);
+/// // subtle difference
+/// let result = einsum("mk,n->ma", &[x.clone(), k.clone()]).unwrap();
+/// let expected = Tensor::<i128>::new(Some(&[1773]), &[1, 1]).unwrap();
+/// assert_eq!(result, expected);
+///
+////// ```
 pub fn einsum<
     T: TensorType + Mul<Output = T> + Add<Output = T> + std::marker::Send + std::marker::Sync,
 >(
@@ -806,7 +827,7 @@ pub fn einsum<
         .collect();
 
     let mut output: Tensor<T> = output.into_iter().into();
-    output.reshape(&output_shape);
+    output.reshape(&output_shape)?;
 
     Ok(output)
 }
@@ -1096,7 +1117,10 @@ pub fn downsample<T: TensorType + Send + Sync>(
     output_shape[dim] = div + (remainder > 0) as usize;
     let mut output = Tensor::<T>::new(None, &output_shape)?;
 
-    assert!(modulo <= input.dims()[dim]);
+    if modulo > input.dims()[dim] {
+        return Err(TensorError::DimMismatch("downsample".to_string()));
+    }
+
     // now downsample along axis dim offset by modulo
     let indices = (0..output_shape.len())
         .map(|i| {
@@ -1150,7 +1174,7 @@ pub fn gather<T: TensorType + Send + Sync>(
     let mut index_clone = index.clone();
     index_clone.flatten();
     if index_clone.is_singleton() {
-        index_clone.reshape(&[1]);
+        index_clone.reshape(&[1])?;
     }
 
     // Calculate the output tensor size
@@ -1182,7 +1206,7 @@ pub fn gather<T: TensorType + Send + Sync>(
         output_size.remove(dim);
     }
 
-    output.reshape(&output_size);
+    output.reshape(&output_size)?;
 
     Ok(output)
 }
@@ -1300,7 +1324,7 @@ pub fn gather_elements<T: TensorType + Send + Sync>(
     })?;
 
     // Reshape the output tensor
-    output.reshape(&output_size);
+    output.reshape(&output_size)?;
 
     Ok(output)
 }
@@ -1775,7 +1799,7 @@ pub fn conv<
         } else {
             new_dims.insert(0, 1);
         }
-        image.reshape(&new_dims);
+        image.reshape(&new_dims)?;
     }
 
     // ensure kernel is 4D tensor
@@ -1784,7 +1808,7 @@ pub fn conv<
         let mut new_dims = kernel.dims().to_vec();
         // insert 1 at the input_channels pos
         new_dims.insert(1, 1);
-        kernel.reshape(&new_dims);
+        kernel.reshape(&new_dims)?;
     }
 
     if (image.dims().len() != 4)
@@ -1888,11 +1912,11 @@ pub fn conv<
 
     // remove dummy batch dimension if we added one
     if og_image_dims.len() == 3 && vert_slides == 1 {
-        output.reshape(&[output_channels, vert_slides, horz_slides]);
+        output.reshape(&[output_channels, vert_slides, horz_slides])?;
     } else if og_image_dims.len() == 3 {
-        output.reshape(&[output_channels, vert_slides, horz_slides]);
+        output.reshape(&[output_channels, vert_slides, horz_slides])?;
     } else {
-        output.reshape(&[batch_size, output_channels, vert_slides, horz_slides]);
+        output.reshape(&[batch_size, output_channels, vert_slides, horz_slides])?;
     }
 
     Ok(output)
@@ -1981,27 +2005,32 @@ pub fn one_hot(
         .multi_cartesian_product()
         .collect::<Vec<_>>();
 
-    output.iter_mut().enumerate().for_each(|(i, o)| {
-        let coord = &cartesian_coord[i];
-        let coord_axis = coord[axis];
+    output
+        .iter_mut()
+        .enumerate()
+        .map(|(i, o)| {
+            let coord = &cartesian_coord[i];
+            let coord_axis = coord[axis];
 
-        let mut coord_without_axis = coord.clone();
-        coord_without_axis.remove(axis);
+            let mut coord_without_axis = coord.clone();
+            coord_without_axis.remove(axis);
 
-        let elem = tensor.get(&coord_without_axis) as usize;
-        if elem > num_classes {
-            panic!(
-                "Element {} is greater than num_classes {}",
-                elem, num_classes
-            );
-        };
+            let elem = tensor.get(&coord_without_axis) as usize;
+            if elem > num_classes {
+                return Err(TensorError::DimMismatch(format!(
+                    "Expected element to be less than num_classes, but got {}",
+                    elem
+                )));
+            };
 
-        if coord_axis == elem {
-            *o = 1;
-        } else {
-            *o = 0;
-        }
-    });
+            if coord_axis == elem {
+                *o = 1;
+            } else {
+                *o = 0;
+            }
+            Ok(())
+        })
+        .collect::<Result<Vec<()>, TensorError>>()?;
 
     Ok(output)
 }
@@ -2193,13 +2222,13 @@ pub fn deconv<
     for (i, j) in channel_coord {
         let mut channel = kernel.get_slice(&[i..i + 1, j..j + 1])?;
         channel = Tensor::from(channel.clone().into_iter().rev());
-        channel.reshape(&[kernel.dims()[2], kernel.dims()[3]]);
+        channel.reshape(&[kernel.dims()[2], kernel.dims()[3]])?;
         inverted_kernels.push(channel);
     }
 
     let mut deconv_kernel =
         Tensor::new(Some(&inverted_kernels), &[inverted_kernels.len()])?.combine()?;
-    deconv_kernel.reshape(kernel.dims());
+    deconv_kernel.reshape(kernel.dims())?;
 
     // tensorflow formatting patch
     if kernel.dims()[0] == sliced_expanded_image.dims()[1] {
@@ -2208,7 +2237,7 @@ pub fn deconv<
             kernel.dims()[0],
             kernel.dims()[2],
             kernel.dims()[3],
-        ]);
+        ])?;
     }
 
     let input = if has_bias {
@@ -2503,7 +2532,7 @@ pub fn pad<T: TensorType>(
         }
     }
 
-    output.reshape(&[batch_size, channels, padded_height, padded_width]);
+    output.reshape(&[batch_size, channels, padded_height, padded_width])?;
     Ok(output)
 }
 
@@ -2647,7 +2676,7 @@ pub fn concat<T: TensorType + Send + Sync>(
     })?;
 
     // Reshape the output tensor
-    output.reshape(&output_size);
+    output.reshape(&output_size)?;
 
     Ok(output)
 }
@@ -3047,8 +3076,7 @@ pub mod nonlinearities {
             .unwrap()
             .combine()
             .unwrap();
-        res.reshape(dims);
-
+        res.reshape(dims).unwrap();
         (res, intermediate_values)
     }
 
@@ -3178,7 +3206,7 @@ pub mod nonlinearities {
     pub fn rsqrt(a: &Tensor<i128>, scale_input: f64) -> Tensor<i128> {
         a.par_enum_map(|_, a_i| {
             let kix = (a_i as f64) / scale_input;
-            let fout = scale_input * (1.0 / kix.sqrt());
+            let fout = scale_input / (kix.sqrt() + f64::EPSILON);
             let rounded = fout.round();
             Ok::<_, TensorError>(rounded as i128)
         })
@@ -3641,23 +3669,18 @@ pub mod nonlinearities {
     ///    Some(&[2, 15, 2, 1, 1, -5]),
     ///   &[2, 3],
     /// ).unwrap();
-    /// let result = max(&x, 1, 1, 1.0);
+    /// let result = max(&x, 1.0, 1.0);
     /// let expected = Tensor::<i128>::new(Some(&[2, 15, 2, 1, 1, 1]), &[2, 3]).unwrap();
     /// assert_eq!(result, expected);
     /// ```
-    pub fn max(
-        a: &Tensor<i128>,
-        in_scale: usize,
-        out_scale: usize,
-        threshold: f64,
-    ) -> Tensor<i128> {
+    pub fn max(a: &Tensor<i128>, scale_input: f64, threshold: f64) -> Tensor<i128> {
         // calculate value of output
         a.par_enum_map(|_, a_i| {
-            let d_inv_x = (a_i as f64) / (in_scale as f64);
+            let d_inv_x = (a_i as f64) / scale_input;
             let rounded = if d_inv_x <= threshold {
-                (threshold * (out_scale as f64)).round() as i128
+                (threshold * scale_input).round() as i128
             } else {
-                (d_inv_x * (out_scale as f64)).round() as i128
+                (d_inv_x * scale_input).round() as i128
             };
             Ok::<_, TensorError>(rounded)
         })
@@ -3676,23 +3699,18 @@ pub mod nonlinearities {
     ///    Some(&[2, 15, 2, 1, 1, -5]),
     ///   &[2, 3],
     /// ).unwrap();
-    /// let result = min(&x, 1, 1, 2.0);
+    /// let result = min(&x, 1.0, 2.0);
     /// let expected = Tensor::<i128>::new(Some(&[2, 2, 2, 1, 1, -5]), &[2, 3]).unwrap();
     /// assert_eq!(result, expected);
     /// ```
-    pub fn min(
-        a: &Tensor<i128>,
-        in_scale: usize,
-        out_scale: usize,
-        threshold: f64,
-    ) -> Tensor<i128> {
+    pub fn min(a: &Tensor<i128>, scale_input: f64, threshold: f64) -> Tensor<i128> {
         // calculate value of output
         a.par_enum_map(|_, a_i| {
-            let d_inv_x = (a_i as f64) / (in_scale as f64);
+            let d_inv_x = (a_i as f64) / scale_input;
             let rounded = if d_inv_x >= threshold {
-                (threshold * (out_scale as f64)).round() as i128
+                (threshold * scale_input).round() as i128
             } else {
-                (d_inv_x * (out_scale as f64)).round() as i128
+                (d_inv_x * scale_input).round() as i128
             };
             Ok::<_, TensorError>(rounded)
         })
@@ -3745,7 +3763,7 @@ pub mod nonlinearities {
     /// ```
     pub fn recip(a: &Tensor<i128>, scale: f64) -> Tensor<i128> {
         a.par_enum_map(|_, a_i| {
-            let denom = (1_f64) / (a_i as f64);
+            let denom = (1_f64) / (a_i as f64 + f64::EPSILON);
             let d_inv_x = scale * denom;
             Ok::<_, TensorError>(d_inv_x.round() as i128)
         })

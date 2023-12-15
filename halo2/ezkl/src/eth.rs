@@ -82,11 +82,10 @@ pub async fn setup_eth_backend(
         let private_key_format_error =
             "Private key must be in hex format, 64 chars, without 0x prefix";
         if private_key.len() != 64 {
-            panic!("{}", private_key_format_error);
+            return Err(private_key_format_error.into());
         }
-        let private_key_buffer = hex::decode(private_key).expect(private_key_format_error);
-        let signing_key =
-            SigningKey::from_slice(&private_key_buffer).expect(private_key_format_error);
+        let private_key_buffer = hex::decode(private_key)?;
+        let signing_key = SigningKey::from_slice(&private_key_buffer)?;
         wallet = LocalWallet::from(signing_key);
     } else {
         wallet = anvil.keys()[0].clone().into();
@@ -159,7 +158,7 @@ pub async fn deploy_da_verifier_via_solidity(
     if settings.run_args.param_visibility.is_hashed()
         || settings.run_args.param_visibility.is_encrypted()
     {
-        todo!()
+        return Err(Box::new(EvmVerificationError::InvalidVisibility));
     }
 
     if settings.run_args.output_visibility.is_hashed() {
@@ -173,8 +172,6 @@ pub async fn deploy_da_verifier_via_solidity(
             instance_shapes.push(shape.iter().product::<usize>());
         }
     }
-
-    println!("instance_shapes: {:#?}", instance_shapes);
 
     let mut instance_idx = 0;
     let mut contract_instance_offset = 0;
@@ -228,13 +225,12 @@ pub async fn deploy_da_verifier_via_solidity(
     let (contract_addresses, call_data, decimals) = if !calls_to_accounts.is_empty() {
         parse_calls_to_accounts(calls_to_accounts)?
     } else {
-        panic!("Data source for either input_data or output_data must be OnChain")
+        return Err("Data source for either input_data or output_data must be OnChain".into());
     };
 
     let (abi, bytecode, runtime_bytecode) =
         get_contract_artifacts(sol_code_path, "DataAttestation", runs)?;
-    let factory =
-        get_sol_contract_factory(abi, bytecode, runtime_bytecode, client.clone()).unwrap();
+    let factory = get_sol_contract_factory(abi, bytecode, runtime_bytecode, client.clone())?;
 
     info!("call_data: {:#?}", call_data);
     info!("contract_addresses: {:#?}", contract_addresses);
@@ -256,9 +252,11 @@ pub async fn deploy_da_verifier_via_solidity(
     Ok(contract.address())
 }
 
+type ParsedCallsToAccount = (Vec<H160>, Vec<Vec<Bytes>>, Vec<Vec<U256>>);
+
 fn parse_calls_to_accounts(
     calls_to_accounts: Vec<CallsToAccount>,
-) -> Result<(Vec<H160>, Vec<Vec<Bytes>>, Vec<Vec<U256>>), Box<dyn Error>> {
+) -> Result<ParsedCallsToAccount, Box<dyn Error>> {
     let mut contract_addresses = vec![];
     let mut call_data = vec![];
     let mut decimals: Vec<Vec<U256>> = vec![];
@@ -302,7 +300,7 @@ pub async fn update_account_calls(
     let (contract_addresses, call_data, decimals) = if !calls_to_accounts.is_empty() {
         parse_calls_to_accounts(calls_to_accounts)?
     } else {
-        panic!("Data source for either input_data or output_data must be OnChain")
+        return Err("Data source for either input_data or output_data must be OnChain".into());
     };
 
     let (anvil, client) = setup_eth_backend(rpc_url, None).await?;
@@ -336,7 +334,7 @@ pub async fn update_account_calls(
     {
         info!("update_account_calls failed as expected");
     } else {
-        panic!("update_account_calls should have failed for non admin account call");
+        return Err("update_account_calls should have failed".into());
     }
 
     Ok(())
@@ -367,10 +365,10 @@ pub async fn verify_proof_via_solidity(
     if result.is_err() {
         return Err(Box::new(EvmVerificationError::SolidityExecution));
     }
-    let result = result.unwrap();
+    let result = result?;
     info!("result: {:#?}", result.to_vec());
     // decode return bytes value into uint8
-    let result = result.to_vec().last().unwrap() == &1u8;
+    let result = result.to_vec().last().ok_or("no contract ouput")? == &1u8;
     if !result {
         return Err(Box::new(EvmVerificationError::InvalidProof));
     }
@@ -419,11 +417,9 @@ pub async fn setup_test_contract<M: 'static + Middleware>(
     std::fs::write(&sol_path, TESTREADS_SOL)?;
 
     // Compile the contract
-    let (abi, bytecode, runtime_bytecode) =
-        get_contract_artifacts(sol_path, "TestReads", 0).unwrap();
+    let (abi, bytecode, runtime_bytecode) = get_contract_artifacts(sol_path, "TestReads", 0)?;
 
-    let factory =
-        get_sol_contract_factory(abi, bytecode, runtime_bytecode, client.clone()).unwrap();
+    let factory = get_sol_contract_factory(abi, bytecode, runtime_bytecode, client.clone())?;
 
     let mut decimals = vec![];
     let mut scaled_by_decimals_data = vec![];
@@ -523,10 +519,10 @@ pub async fn verify_proof_with_data_attestation(
     if result.is_err() {
         return Err(Box::new(EvmVerificationError::SolidityExecution));
     }
-    let result = result.unwrap();
+    let result = result?;
     info!("result: {:#?}", result);
     // decode return bytes value into uint8
-    let result = result.to_vec().last().unwrap() == &1u8;
+    let result = result.to_vec().last().ok_or("no contract ouput")? == &1u8;
     if !result {
         return Err(Box::new(EvmVerificationError::InvalidProof));
     }
@@ -555,8 +551,8 @@ pub async fn test_on_chain_data<M: 'static + Middleware>(
     // Get the encoded call data for each input
     let mut calldata = vec![];
     for (i, _) in data.iter().flatten().enumerate() {
-        let function = contract.method::<_, I256>("arr", i as u32).unwrap();
-        let call = function.calldata().unwrap();
+        let function = contract.method::<_, I256>("arr", i as u32)?;
+        let call = function.calldata().ok_or("could not get calldata")?;
         // Push (call, decimals) to the calldata vector.
         calldata.push((hex::encode(call), decimals[i]));
     }
@@ -614,8 +610,7 @@ pub async fn evm_quantize<M: 'static + Middleware>(
     std::fs::write(&sol_path, QUANTIZE_DATA_SOL)?;
 
     let (abi, bytecode, runtime_bytecode) = get_contract_artifacts(sol_path, "QuantizeData", 0)?;
-    let factory =
-        get_sol_contract_factory(abi, bytecode, runtime_bytecode, client.clone()).unwrap();
+    let factory = get_sol_contract_factory(abi, bytecode, runtime_bytecode, client.clone())?;
 
     let contract = factory.deploy(())?.send().await?;
 
@@ -646,14 +641,9 @@ pub async fn evm_quantize<M: 'static + Middleware>(
     let results = contract
         .quantize_data(fetched_inputs, decimals, scales)
         .call()
-        .await
-        .unwrap();
+        .await?;
 
-    let felts = contract
-        .to_field_element(results.clone())
-        .call()
-        .await
-        .unwrap();
+    let felts = contract.to_field_element(results.clone()).call().await?;
     info!("evm quantization contract results: {:#?}", felts,);
 
     let results = felts
@@ -694,7 +684,9 @@ pub fn get_contract_artifacts(
     contract_name: &str,
     runs: usize,
 ) -> Result<(Contract, Bytes, Bytes), Box<dyn Error>> {
-    assert!(sol_code_path.exists());
+    if !sol_code_path.exists() {
+        return Err("sol_code_path does not exist".into());
+    }
     // Create the compiler input, enabling the optimizer and setting the optimzer runs.
     let input: CompilerInput = if runs > 0 {
         let mut i = CompilerInput::new(sol_code_path)?[0]
@@ -705,12 +697,14 @@ pub fn get_contract_artifacts(
     } else {
         CompilerInput::new(sol_code_path)?[0].clone()
     };
-    let compiled = Solc::default().compile(&input).unwrap();
+    let compiled = Solc::default().compile(&input)?;
 
-    let (abi, bytecode, runtime_bytecode) = compiled
-        .find(contract_name)
-        .expect("could not find contract")
-        .into_parts_or_default();
+    let (abi, bytecode, runtime_bytecode) = match compiled.find(contract_name) {
+        Some(c) => c.into_parts_or_default(),
+        None => {
+            return Err("could not find contract".into());
+        }
+    };
     Ok((abi, bytecode, runtime_bytecode))
 }
 
@@ -726,7 +720,9 @@ pub fn fix_da_sol(
     // `SPDX-License-Identifier: MIT pragma solidity ^0.8.20;` at the top of the file
     contract = contract.replace(
         "import './LoadInstances.sol';",
-        &load_instances[load_instances.find("contract").unwrap()..],
+        &load_instances[load_instances
+            .find("contract")
+            .ok_or("could not get load-instances contract")?..],
     );
 
     // fill in the quantization params and total calls

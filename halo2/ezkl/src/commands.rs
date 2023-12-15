@@ -51,7 +51,7 @@ impl<'source> FromPyObject<'source> for TranscriptType {
     }
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 /// Determines what the calibration pass should optimize for
 pub enum CalibrationTarget {
     /// Optimizes for reducing cpu and memory usage
@@ -93,7 +93,11 @@ impl From<&str> for CalibrationTarget {
             },
             "resources/col-overflow" => CalibrationTarget::Resources { col_overflow: true },
             "accuracy" => CalibrationTarget::Accuracy,
-            _ => panic!("invalid calibration target"),
+            _ => {
+                log::error!("Invalid value for CalibrationTarget");
+                log::warn!("Defaulting to resources");
+                CalibrationTarget::default()
+            }
         }
     }
 }
@@ -171,8 +175,9 @@ impl Cli {
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, Subcommand, Clone, Deserialize, Serialize)]
+#[derive(Debug, Subcommand, Clone, Deserialize, Serialize, PartialEq, PartialOrd)]
 pub enum Commands {
+    Empty,
     /// Loads model and prints model table
     #[command(arg_required_else_help = true)]
     Table {
@@ -672,6 +677,9 @@ pub enum Commands {
     #[command(name = "get-hub-credentials", arg_required_else_help = true)]
     #[cfg(not(target_arch = "wasm32"))]
     GetHubCredentials {
+        /// The user's api key
+        #[arg(short = 'K', long)]
+        api_key: Option<String>,
         /// The path to the model file
         #[arg(short = 'N', long)]
         username: String,
@@ -684,6 +692,9 @@ pub enum Commands {
     #[command(name = "create-hub-artifact", arg_required_else_help = true)]
     #[cfg(not(target_arch = "wasm32"))]
     CreateHubArtifact {
+        /// The user's api key
+        #[arg(short = 'K', long)]
+        api_key: Option<String>,
         /// The path to the model file
         #[arg(short = 'M', long)]
         uncompiled_circuit: PathBuf,
@@ -707,29 +718,49 @@ pub enum Commands {
         target: CalibrationTarget,
     },
 
-    /// Create artifacts and deploys them on the hub
+    #[command(name = "get-hub-artifact", arg_required_else_help = true)]
+    #[cfg(not(target_arch = "wasm32"))]
+    GetHubArtifact {
+        /// The user's api key
+        #[arg(short = 'K', long)]
+        api_key: Option<String>,
+        /// The artifact id
+        #[arg(short = 'A', long)]
+        artifact_id: String,
+        /// The url to send requests to
+        #[arg(short = 'U', long)]
+        url: Option<String>,
+    },
+
+    /// Prove data on the hub
     #[command(name = "prove-hub", arg_required_else_help = true)]
     #[cfg(not(target_arch = "wasm32"))]
     ProveHub {
+        /// The user's api key
+        #[arg(short = 'K', long)]
+        api_key: Option<String>,
         /// The path to the model file
         #[arg(short = 'A', long)]
         artifact_id: String,
         /// The path to the input json file
         #[arg(short = 'D', long)]
         data: PathBuf,
+        /// The url to send requests to
         #[arg(short = 'U', long)]
         url: Option<String>,
-        #[arg(short = 'T', long)]
-        transcript_type: Option<String>,
     },
 
     /// Create artifacts and deploys them on the hub
     #[command(name = "get-hub-proof", arg_required_else_help = true)]
     #[cfg(not(target_arch = "wasm32"))]
     GetHubProof {
-        /// The path to the model file
-        #[arg(short = 'A', long)]
-        artifact_id: String,
+        /// The user's api key
+        #[arg(short = 'K', long)]
+        api_key: Option<String>,
+        /// The proof id
+        #[arg(short = 'P', long)]
+        proof_id: String,
+        /// The url to send requests to
         #[arg(short = 'U', long)]
         url: Option<String>,
     },
