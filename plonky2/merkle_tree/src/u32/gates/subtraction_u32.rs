@@ -21,11 +21,11 @@ use plonky2::plonk::vars::{
     EvaluationTargets, EvaluationVars, EvaluationVarsBase, EvaluationVarsBaseBatch,
     EvaluationVarsBasePacked,
 };
-use plonky2::util::serialization::{Buffer, IoResult, Read, Write};
+use plonky2::util::serialization::{Buffer, IoResult, Write, Read};
 
 /// A gate to perform a subtraction on 32-bit limbs: given `x`, `y`, and `borrow`, it returns
 /// the result `x - y - borrow` and, if this underflows, a new `borrow`. Inputs are not range-checked.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct U32SubtractionGate<F: RichField + Extendable<D>, const D: usize> {
     pub num_ops: usize,
     _phantom: PhantomData<F>,
@@ -45,25 +45,25 @@ impl<F: RichField + Extendable<D>, const D: usize> U32SubtractionGate<F, D> {
         (config.num_wires / wires_per_op).min(config.num_routed_wires / routed_wires_per_op)
     }
 
-    pub fn wire_ith_input_x(i: usize) -> usize {
-        // debug_assert!(i < self.num_ops);
+    pub fn wire_ith_input_x(&self, i: usize) -> usize {
+        debug_assert!(i < self.num_ops);
         5 * i
     }
-    pub fn wire_ith_input_y(i: usize) -> usize {
-        // debug_assert!(i < self.num_ops);
+    pub fn wire_ith_input_y(&self, i: usize) -> usize {
+        debug_assert!(i < self.num_ops);
         5 * i + 1
     }
-    pub fn wire_ith_input_borrow(i: usize) -> usize {
-        // debug_assert!(i < self.num_ops);
+    pub fn wire_ith_input_borrow(&self, i: usize) -> usize {
+        debug_assert!(i < self.num_ops);
         5 * i + 2
     }
 
-    pub fn wire_ith_output_result(i: usize) -> usize {
-        // debug_assert!(i < self.num_ops);
+    pub fn wire_ith_output_result(&self, i: usize) -> usize {
+        debug_assert!(i < self.num_ops);
         5 * i + 3
     }
-    pub fn wire_ith_output_borrow(i: usize) -> usize {
-        // debug_assert!(i < self.num_ops);
+    pub fn wire_ith_output_borrow(&self, i: usize) -> usize {
+        debug_assert!(i < self.num_ops);
         5 * i + 4
     }
 
@@ -75,10 +75,10 @@ impl<F: RichField + Extendable<D>, const D: usize> U32SubtractionGate<F, D> {
         32 / Self::limb_bits()
     }
 
-    pub fn wire_ith_output_jth_limb(num_ops: usize, i: usize, j: usize) -> usize {
-        // debug_assert!(i < self.num_ops);
-        // debug_assert!(j < Self::num_limbs());
-        5 * num_ops + Self::num_limbs() * i + j
+    pub fn wire_ith_output_jth_limb(&self, i: usize, j: usize) -> usize {
+        debug_assert!(i < self.num_ops);
+        debug_assert!(j < Self::num_limbs());
+        5 * self.num_ops + Self::num_limbs() * i + j
     }
 }
 
@@ -105,15 +105,15 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for U32Subtraction
     fn eval_unfiltered(&self, vars: EvaluationVars<F, D>) -> Vec<F::Extension> {
         let mut constraints = Vec::with_capacity(self.num_constraints());
         for i in 0..self.num_ops {
-            let input_x = vars.local_wires[Self::wire_ith_input_x(i)];
-            let input_y = vars.local_wires[Self::wire_ith_input_y(i)];
-            let input_borrow = vars.local_wires[Self::wire_ith_input_borrow(i)];
+            let input_x = vars.local_wires[self.wire_ith_input_x(i)];
+            let input_y = vars.local_wires[self.wire_ith_input_y(i)];
+            let input_borrow = vars.local_wires[self.wire_ith_input_borrow(i)];
 
             let result_initial = input_x - input_y - input_borrow;
             let base = F::Extension::from_canonical_u64(1 << 32u64);
 
-            let output_result = vars.local_wires[Self::wire_ith_output_result(i)];
-            let output_borrow = vars.local_wires[Self::wire_ith_output_borrow(i)];
+            let output_result = vars.local_wires[self.wire_ith_output_result(i)];
+            let output_borrow = vars.local_wires[self.wire_ith_output_borrow(i)];
 
             constraints.push(output_result - (result_initial + base * output_borrow));
 
@@ -121,8 +121,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for U32Subtraction
             let mut combined_limbs = F::Extension::ZERO;
             let limb_base = F::Extension::from_canonical_u64(1u64 << Self::limb_bits());
             for j in (0..Self::num_limbs()).rev() {
-                let this_limb =
-                    vars.local_wires[Self::wire_ith_output_jth_limb(self.num_ops, i, j)];
+                let this_limb = vars.local_wires[self.wire_ith_output_jth_limb(i, j)];
                 let max_limb = 1 << Self::limb_bits();
                 let product = (0..max_limb)
                     .map(|x| this_limb - F::Extension::from_canonical_usize(x))
@@ -159,16 +158,16 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for U32Subtraction
     ) -> Vec<ExtensionTarget<D>> {
         let mut constraints = Vec::with_capacity(self.num_constraints());
         for i in 0..self.num_ops {
-            let input_x = vars.local_wires[Self::wire_ith_input_x(i)];
-            let input_y = vars.local_wires[Self::wire_ith_input_y(i)];
-            let input_borrow = vars.local_wires[Self::wire_ith_input_borrow(i)];
+            let input_x = vars.local_wires[self.wire_ith_input_x(i)];
+            let input_y = vars.local_wires[self.wire_ith_input_y(i)];
+            let input_borrow = vars.local_wires[self.wire_ith_input_borrow(i)];
 
             let diff = builder.sub_extension(input_x, input_y);
             let result_initial = builder.sub_extension(diff, input_borrow);
             let base = builder.constant_extension(F::Extension::from_canonical_u64(1 << 32u64));
 
-            let output_result = vars.local_wires[Self::wire_ith_output_result(i)];
-            let output_borrow = vars.local_wires[Self::wire_ith_output_borrow(i)];
+            let output_result = vars.local_wires[self.wire_ith_output_result(i)];
+            let output_borrow = vars.local_wires[self.wire_ith_output_borrow(i)];
 
             let computed_output = builder.mul_add_extension(base, output_borrow, result_initial);
             constraints.push(builder.sub_extension(output_result, computed_output));
@@ -178,8 +177,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for U32Subtraction
             let limb_base = builder
                 .constant_extension(F::Extension::from_canonical_u64(1u64 << Self::limb_bits()));
             for j in (0..Self::num_limbs()).rev() {
-                let this_limb =
-                    vars.local_wires[Self::wire_ith_output_jth_limb(self.num_ops, i, j)];
+                let this_limb = vars.local_wires[self.wire_ith_output_jth_limb(i, j)];
                 let max_limb = 1 << Self::limb_bits();
                 let mut product = builder.one_extension();
                 for x in 0..max_limb {
@@ -208,9 +206,9 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for U32Subtraction
             .map(|i| {
                 let g: WitnessGeneratorRef<F, D> = WitnessGeneratorRef::new(
                     U32SubtractionGenerator {
+                        gate: *self,
                         row,
                         i,
-                        num_ops: self.num_ops,
                         _phantom: PhantomData,
                     }
                     .adapter(),
@@ -246,15 +244,15 @@ impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D>
         mut yield_constr: StridedConstraintConsumer<P>,
     ) {
         for i in 0..self.num_ops {
-            let input_x = vars.local_wires[Self::wire_ith_input_x(i)];
-            let input_y = vars.local_wires[Self::wire_ith_input_y(i)];
-            let input_borrow = vars.local_wires[Self::wire_ith_input_borrow(i)];
+            let input_x = vars.local_wires[self.wire_ith_input_x(i)];
+            let input_y = vars.local_wires[self.wire_ith_input_y(i)];
+            let input_borrow = vars.local_wires[self.wire_ith_input_borrow(i)];
 
             let result_initial = input_x - input_y - input_borrow;
             let base = F::from_canonical_u64(1 << 32u64);
 
-            let output_result = vars.local_wires[Self::wire_ith_output_result(i)];
-            let output_borrow = vars.local_wires[Self::wire_ith_output_borrow(i)];
+            let output_result = vars.local_wires[self.wire_ith_output_result(i)];
+            let output_borrow = vars.local_wires[self.wire_ith_output_borrow(i)];
 
             yield_constr.one(output_result - (result_initial + output_borrow * base));
 
@@ -262,8 +260,7 @@ impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D>
             let mut combined_limbs = P::ZEROS;
             let limb_base = F::from_canonical_u64(1u64 << Self::limb_bits());
             for j in (0..Self::num_limbs()).rev() {
-                let this_limb =
-                    vars.local_wires[Self::wire_ith_output_jth_limb(self.num_ops, i, j)];
+                let this_limb = vars.local_wires[self.wire_ith_output_jth_limb(i, j)];
                 let max_limb = 1 << Self::limb_bits();
                 let product = (0..max_limb)
                     .map(|x| this_limb - F::from_canonical_usize(x))
@@ -282,9 +279,9 @@ impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D>
 
 #[derive(Clone, Debug, Default)]
 pub struct U32SubtractionGenerator<F: RichField + Extendable<D>, const D: usize> {
+    gate: U32SubtractionGate<F, D>,
     row: usize,
     i: usize,
-    num_ops: usize,
     _phantom: PhantomData<F>,
 }
 
@@ -299,9 +296,9 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
         let local_target = |column| Target::wire(self.row, column);
 
         vec![
-            local_target(U32SubtractionGate::<F, D>::wire_ith_input_x(self.i)),
-            local_target(U32SubtractionGate::<F, D>::wire_ith_input_y(self.i)),
-            local_target(U32SubtractionGate::<F, D>::wire_ith_input_borrow(self.i)),
+            local_target(self.gate.wire_ith_input_x(self.i)),
+            local_target(self.gate.wire_ith_input_y(self.i)),
+            local_target(self.gate.wire_ith_input_borrow(self.i)),
         ]
     }
 
@@ -313,10 +310,9 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
 
         let get_local_wire = |column| witness.get_wire(local_wire(column));
 
-        let input_x = get_local_wire(U32SubtractionGate::<F, D>::wire_ith_input_x(self.i));
-        let input_y = get_local_wire(U32SubtractionGate::<F, D>::wire_ith_input_y(self.i));
-        let input_borrow =
-            get_local_wire(U32SubtractionGate::<F, D>::wire_ith_input_borrow(self.i));
+        let input_x = get_local_wire(self.gate.wire_ith_input_x(self.i));
+        let input_y = get_local_wire(self.gate.wire_ith_input_y(self.i));
+        let input_borrow = get_local_wire(self.gate.wire_ith_input_borrow(self.i));
 
         let result_initial = input_x - input_y - input_borrow;
         let result_initial_u64 = result_initial.to_canonical_u64();
@@ -329,10 +325,8 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
         let base = F::from_canonical_u64(1 << 32u64);
         let output_result = result_initial + base * output_borrow;
 
-        let output_result_wire =
-            local_wire(U32SubtractionGate::<F, D>::wire_ith_output_result(self.i));
-        let output_borrow_wire =
-            local_wire(U32SubtractionGate::<F, D>::wire_ith_output_borrow(self.i));
+        let output_result_wire = local_wire(self.gate.wire_ith_output_result(self.i));
+        let output_borrow_wire = local_wire(self.gate.wire_ith_output_borrow(self.i));
 
         out_buffer.set_wire(output_result_wire, output_result);
         out_buffer.set_wire(output_borrow_wire, output_borrow);
@@ -350,32 +344,28 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
             .collect();
 
         for (j, &output_limb) in output_limbs.iter().enumerate().take(num_limbs) {
-            let wire = local_wire(U32SubtractionGate::<F, D>::wire_ith_output_jth_limb(
-                self.num_ops,
-                self.i,
-                j,
-            ));
+            let wire = local_wire(self.gate.wire_ith_output_jth_limb(self.i, j));
             out_buffer.set_wire(wire, output_limb);
         }
     }
 
-    fn serialize(&self, dst: &mut Vec<u8>, _: &CommonCircuitData<F, D>) -> IoResult<()> {
+    fn serialize(&self, dst: &mut Vec<u8>, common_data: &CommonCircuitData<F, D>) -> IoResult<()> {
+        self.gate.serialize(dst, common_data)?;
         dst.write_usize(self.row)?;
-        dst.write_usize(self.i)?;
-        dst.write_usize(self.num_ops)
+        dst.write_usize(self.i)
     }
 
-    fn deserialize(src: &mut Buffer, _: &CommonCircuitData<F, D>) -> IoResult<Self>
+    fn deserialize(src: &mut Buffer, common_data: &CommonCircuitData<F, D>) -> IoResult<Self>
     where
         Self: Sized,
     {
+        let gate = U32SubtractionGate::deserialize(src, common_data)?;
         let row = src.read_usize()?;
         let i = src.read_usize()?;
-        let num_ops = src.read_usize()?;
         Ok(Self {
+            gate,
             row,
             i,
-            num_ops,
             _phantom: PhantomData,
         })
     }

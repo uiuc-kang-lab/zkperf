@@ -29,7 +29,7 @@ use plonky2::util::serialization::{Buffer, IoResult, Read, Write};
 /// An example
 ///   x:             b0000_0000_0000_0000_1111_0111_0011_1110
 ///   x_interleaved: b0101_0101_0001_0101_0000_0101_0101_0100
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct U32InterleaveGate {
     pub num_ops: usize,
 }
@@ -56,13 +56,13 @@ impl U32InterleaveGate {
 
     // These could be consts, but let's make them as functions so we can more easily
     // extend to multiple operations in the gate in an optimized version
-    pub fn wire_ith_x(i: usize) -> usize {
-        // debug_assert!(i < self.num_ops);
+    pub fn wire_ith_x(&self, i: usize) -> usize {
+        debug_assert!(i < self.num_ops);
         Self::routed_wires_per_op() * i
     }
 
-    pub fn wire_ith_x_interleaved(i: usize) -> usize {
-        // debug_assert!(i < self.num_ops);
+    pub fn wire_ith_x_interleaved(&self, i: usize) -> usize {
+        debug_assert!(i < self.num_ops);
         Self::routed_wires_per_op() * i + 1
     }
 
@@ -75,8 +75,8 @@ impl U32InterleaveGate {
     /// Make sure the inputs are big-endian — this is out of line with the rest of the plonky2 repo, but we
     /// specifically need our interleaved representation to be big-endian in order to fit in the field, so
     /// it's better to be explicit about this from the beginning when assigning the wire values
-    pub fn wires_ith_bit_decomposition(num_ops: usize, i: usize) -> Range<usize> {
-        let start = num_ops * Self::routed_wires_per_op();
+    pub fn wires_ith_bit_decomposition(&self, i: usize) -> Range<usize> {
+        let start = self.num_ops * Self::routed_wires_per_op();
         (start + Self::NUM_BITS * i)..(start + Self::NUM_BITS * (i + 1))
     }
 }
@@ -90,10 +90,8 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for U32InterleaveG
         let mut constraints = vec![];
 
         for i in 0..self.num_ops {
-            let x = vars.local_wires[U32InterleaveGate::wire_ith_x(i)];
-            let bits = vars.local_wires
-                [U32InterleaveGate::wires_ith_bit_decomposition(self.num_ops, i)]
-            .to_vec();
+            let x = vars.local_wires[self.wire_ith_x(i)];
+            let bits = vars.local_wires[self.wires_ith_bit_decomposition(i)].to_vec();
 
             // Check 1: Ensure that the decomposition matches the input
             // Remember that the bits are big-endian. The reduce_with_powers function takes a little-endian representation, so we reverse the input.
@@ -105,7 +103,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for U32InterleaveG
             constraints.push(computed_x - x);
 
             // Check 2: Ensure that the bit decomposition matches the interleaved representation
-            let x_interleaved = vars.local_wires[U32InterleaveGate::wire_ith_x_interleaved(i)];
+            let x_interleaved = vars.local_wires[self.wire_ith_x_interleaved(i)];
 
             // Reduce with powers, but using 4 instead of 2 as the base
             let computed_x_interleaved = reduce_with_powers(
@@ -137,11 +135,9 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for U32InterleaveG
         let mut constraints = vec![];
 
         for i in 0..self.num_ops {
-            let x = vars.local_wires[U32InterleaveGate::wire_ith_x(i)];
-            let x_interleaved = vars.local_wires[U32InterleaveGate::wire_ith_x_interleaved(i)];
-            let bits = vars.local_wires
-                [U32InterleaveGate::wires_ith_bit_decomposition(self.num_ops, i)]
-            .to_vec();
+            let x = vars.local_wires[self.wire_ith_x(i)];
+            let x_interleaved = vars.local_wires[self.wire_ith_x_interleaved(i)];
+            let bits = vars.local_wires[self.wires_ith_bit_decomposition(i)].to_vec();
             let bits_reversed: Vec<ExtensionTarget<D>> = bits.clone().into_iter().rev().collect();
 
             // Check 1: Ensure that the decomposition matches the input
@@ -192,9 +188,9 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for U32InterleaveG
             .map(|i| {
                 let g: WitnessGeneratorRef<F, D> = WitnessGeneratorRef::new(
                     U32InterleaveGenerator {
+                        gate: *self,
                         row,
                         i,
-                        num_ops: self.num_ops,
                     }
                     .adapter(),
                 );
@@ -239,13 +235,8 @@ impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D> for
         mut yield_constr: StridedConstraintConsumer<P>,
     ) {
         for i in 0..self.num_ops {
-            let x = vars.local_wires[U32InterleaveGate::wire_ith_x(i)];
-            let bits = vars
-                .local_wires
-                .view(U32InterleaveGate::wires_ith_bit_decomposition(
-                    self.num_ops,
-                    i,
-                ));
+            let x = vars.local_wires[self.wire_ith_x(i)];
+            let bits = vars.local_wires.view(self.wires_ith_bit_decomposition(i));
 
             // Check 1: Ensure that the decomposition matches the input
             let computed_x =
@@ -254,7 +245,7 @@ impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D> for
             yield_constr.one(computed_x - x);
 
             // Check 2: Ensure that the bit decomposition matches the interleaved representation
-            let x_interleaved = vars.local_wires[U32InterleaveGate::wire_ith_x_interleaved(i)];
+            let x_interleaved = vars.local_wires[self.wire_ith_x_interleaved(i)];
 
             // Reduce with powers, but use 4 instead of 2 as the base
             let computed_x_interleaved = reduce_with_powers(
@@ -277,9 +268,9 @@ impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D> for
 
 #[derive(Debug, Default)]
 pub struct U32InterleaveGenerator {
+    gate: U32InterleaveGate,
     row: usize,
     i: usize,
-    num_ops: usize,
 }
 
 // Populate the bit wires and the x_interleaved wire, given that the x wire's value has been set
@@ -293,7 +284,7 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
     fn dependencies(&self) -> Vec<Target> {
         let local_target = |column| Target::wire(self.row, column);
 
-        vec![local_target(U32InterleaveGate::wire_ith_x(self.i))]
+        vec![local_target(self.gate.wire_ith_x(self.i))]
     }
 
     fn run_once(&self, witness: &PartitionWitness<F>, out_buffer: &mut GeneratedValues<F>) {
@@ -305,15 +296,13 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
         let get_local_wire = |column| witness.get_wire(local_wire(column));
 
         // Reminder: treat x as big-endian
-        let x = get_local_wire(U32InterleaveGate::wire_ith_x(self.i));
+        let x = get_local_wire(self.gate.wire_ith_x(self.i));
 
         let mut x_interleaved = 0u64;
 
         let num_bits = U32InterleaveGate::NUM_BITS;
 
-        for (i, bit_wire_index) in
-            U32InterleaveGate::wires_ith_bit_decomposition(self.num_ops, self.i).enumerate()
-        {
+        for (i, bit_wire_index) in self.gate.wires_ith_bit_decomposition(self.i).enumerate() {
             // Get the i'th bit of x
             let bit = (x.to_canonical_u64() >> (num_bits - i - 1)) % 2;
             assert!(bit == 0 || bit == 1); // Sanity check
@@ -325,24 +314,28 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
             x_interleaved += bit * (1 << (2 * (num_bits - i - 1)));
         }
 
-        let x_interleaved_wire = local_wire(U32InterleaveGate::wire_ith_x_interleaved(self.i));
+        let x_interleaved_wire = local_wire(self.gate.wire_ith_x_interleaved(self.i));
         out_buffer.set_wire(x_interleaved_wire, F::from_canonical_u64(x_interleaved));
     }
 
-    fn serialize(&self, dst: &mut Vec<u8>, _: &CommonCircuitData<F, D>) -> IoResult<()> {
+    fn serialize(&self, dst: &mut Vec<u8>, common_data: &CommonCircuitData<F, D>) -> IoResult<()> {
+        self.gate.serialize(dst, common_data)?;
         dst.write_usize(self.row)?;
-        dst.write_usize(self.i)?;
-        dst.write_usize(self.num_ops)
+        dst.write_usize(self.i)
     }
 
-    fn deserialize(src: &mut Buffer, _: &CommonCircuitData<F, D>) -> IoResult<Self>
+    fn deserialize(src: &mut Buffer, common_data: &CommonCircuitData<F, D>) -> IoResult<Self>
     where
         Self: Sized,
     {
+        let gate = U32InterleaveGate::deserialize(src, common_data)?;
         let row = src.read_usize()?;
         let i = src.read_usize()?;
-        let num_ops = src.read_usize()?;
-        Ok(Self { row, i, num_ops })
+        Ok(Self {
+            gate,
+            row,
+            i,
+        })
     }
 }
 
