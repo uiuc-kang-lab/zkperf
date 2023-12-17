@@ -13,9 +13,7 @@ use plonky2_crypto::u32::gates::uninterleave_to_u32::{
     UninterleaveToU32Gate, UninterleaveToU32Generator,
 };
 use plonky2_field::types::Field;
-use serde::{Serialize, Deserialize};
 use serde_json::json;
-use std::io;
 use std::io::Read;
 use std::{fs::File, io::Write, time::Instant};
 

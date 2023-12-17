@@ -1,0 +1,19 @@
+[package]
+name = "plonky2_merkle_trees"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = "2.33.0"
+plonky2 = { path="../../plonky2", default-features = true, features=["std"] }
+anyhow = { version = "1.0.40", default-features = false }
+itertools = { version = "0.11.0", default-features = false }
+jemallocator = "0.5.0"
+num = { version = "0.4", default-features = false, features = ["rand"] }
+plonky2_util = { git="https://github.com/0xPolygonZero/plonky2", package="plonky2_util", rev="41a29f069b6731c4af2644337959fbad8c771c77" }
+plonky2_field = { git="https://github.com/0xPolygonZero/plonky2", package="plonky2_field", rev="41a29f069b6731c4af2644337959fbad8c771c77" }
+serde_json = "1.0"
+sha2 = "0.10"
+log = "0.4.14"
+env_logger = "0.10.0"
+rand = "0.8.5"

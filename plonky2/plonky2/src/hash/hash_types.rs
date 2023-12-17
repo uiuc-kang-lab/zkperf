@@ -112,7 +112,7 @@ impl<F: Field> Default for HashOut<F> {
 }
 
 /// Represents a ~256 bit hash output.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct HashOutTarget {
     pub elements: [Target; NUM_HASH_OUT_ELTS],
 }
