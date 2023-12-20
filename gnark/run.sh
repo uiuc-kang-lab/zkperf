@@ -33,3 +33,15 @@ echo "$(jq --arg tmp $(echo "scale=6; $(cat /tmp/test | grep "Maximum resident s
 { /usr/bin/time -v ./gmc -circuit DLRM -backend Plonk -step Prover -curve BN254 -outputPath dlrm_plonk; } 2> /tmp/test
 echo "$(jq --arg tmp $(echo "scale=6; $(cat /tmp/test | grep "Maximum resident set size" | tr -d -c 0-9)/1024" | bc) '.+={"MemoryConsumption": $tmp }' "dlrm_plonk.json")" > "dlrm_plonk.json"
 ./gmc -circuit DLRM -backend Plonk -step Verifier -curve BN254 -outputPath dlrm_plonk
+
+go build -o gmc
+# Poseidon Merkle
+./gmc -circuit PoseidonMerkle -backend Groth16 -step Setup -curve BN254 -outputPath poseidon_merkle_groth16 
+{ /usr/bin/time -v ./gmc -circuit PoseidonMerkle -backend Groth16 -step Prover -curve BN254 -outputPath poseidon_merkle_groth16; } 2> /tmp/test
+echo "$(jq --arg tmp $(echo "scale=6; $(cat /tmp/test | grep "Maximum resident set size" | tr -d -c 0-9)/1024" | bc) '.+={"MemoryConsumption": $tmp }' "poseidon_merkle_groth16.json")" > "poseidon_merkle_groth16.json"
+./gmc -circuit PoseidonMerkle -backend Groth16 -step Verifier -curve BN254 -outputPath poseidon_merkle_groth16
+
+./gmc -circuit PoseidonMerkle -backend Plonk -step Setup -curve BN254 -outputPath poseidon_merkle_plonk
+{ /usr/bin/time -v ./gmc -circuit PoseidonMerkle -backend Plonk -step Prover -curve BN254 -outputPath poseidon_merkle_plonk; } 2> /tmp/test
+echo "$(jq --arg tmp $(echo "scale=6; $(cat /tmp/test | grep "Maximum resident set size" | tr -d -c 0-9)/1024" | bc) '.+={"MemoryConsumption": $tmp }' "poseidon_merkle_plonk.json")" > "poseidon_merkle_plonk.json"
+./gmc -circuit PoseidonMerkle -backend Plonk -step Verifier -curve BN254 -outputPath poseidon_merkle_plonk
