@@ -4,11 +4,11 @@ PHASE1=pot23_final.ptau
 BUILD_DIR=build/MNIST
 CIRCUIT_NAME=mnist
 NODE_OPTIONS="--max-old-space-size=51200" # Bigger than 18 GB
-SNARKJS=~/".nvm/versions/node/v21.1.0/lib/node_modules/snarkjs/cli.js"
+SNARKJS=~/".nvm/versions/node/v21.4.0/lib/node_modules/snarkjs/cli.js"
 OUTPUT="mnist_measurement.json"
 INPUT="data/mnist/mnist.json"
-RAPIDSNARK_PROVER="~/rapidsnark/package/bin/prover"
-RAPIDSNARK_VERIFIER="~/rapidsnark/package/bin/verifier"
+RAPIDSNARK_PROVER=~/rapidsnark/package/bin/prover
+RAPIDSNARK_VERIFIER=~/rapidsnark/package/bin/verifier
 
 if [ -f "$PHASE1" ]; then
     echo "Found Phase 1 ptau file"

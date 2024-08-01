@@ -502,7 +502,7 @@ impl<F: PrimeField + Ord> DAGLayerChip<F> {
     };
 
     let tmp = print_arr.iter().map(|x| x.0.as_ref()).collect::<Vec<_>>();
-    // print_assigned_arr("final out", &tmp.to_vec(), gadget_config.scale_factor);
+    print_assigned_arr("final out", &tmp.to_vec(), gadget_config.scale_factor);
     // println!("final out idxes: {:?}", self.dag_config.final_out_idxes);
 
     let mut x = vec![];

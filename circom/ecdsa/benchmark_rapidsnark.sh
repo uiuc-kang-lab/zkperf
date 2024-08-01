@@ -5,8 +5,8 @@ BUILD_DIR=build/ecdsa
 CIRCUIT_NAME=ecdsa_verify
 INPUT=data/input.json
 OUTPUT="measurement.json"
-RAPIDSNARK_PROVER="~/rapidsnark/package/bin/prover"
-RAPIDSNARK_VERIFIER="~/rapidsnark/package/bin/verifier"
+RAPIDSNARK_PROVER=~/rapidsnark/package/bin/prover
+RAPIDSNARK_VERIFIER=~/rapidsnark/package/bin/verifier
 
 if [ -f "$PHASE1" ]; then
     echo "Found Phase 1 ptau file"
