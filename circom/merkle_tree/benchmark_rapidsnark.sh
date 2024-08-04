@@ -5,8 +5,8 @@ BUILD_DIR=build/mt_keccak
 CIRCUIT_NAME=mtverifier
 INPUT=data/mt_verifier_input.json
 OUTPUT="measurement.json"
-RAPIDSNARK_PROVER="~/rapidsnark/package/bin/prover"
-RAPIDSNARK_VERIFIER="~/rapidsnark/package/bin/verifier"
+RAPIDSNARK_PROVER=~/rapidsnark/package/bin/prover
+RAPIDSNARK_VERIFIER=~/rapidsnark/package/bin/verifier
 
 if [ -f "$PHASE1" ]; then
     echo "Found Phase 1 ptau file"

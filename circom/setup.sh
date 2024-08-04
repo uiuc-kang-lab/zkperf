@@ -1,7 +1,8 @@
 #!/bin/bash
 
-sudo apt-get install build-essential cmake libgmp-dev libsodium-dev nasm curl m4
+sudo yum install gcc gcc-c++ make cmake gmp-devel php-sodium nasm m4
 git clone https://github.com/iden3/rapidsnark
+cd rapidsnark
 git submodule init
 git submodule update
 ./build_gmp.sh host
