@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PHASE1=pot21_final.ptau
+PHASE1=pot23_final.ptau
 BUILD_DIR=build/MNIST
 CIRCUIT_NAME=mnist_latest_precision_test
 INPUT="data/mnist/mnist_latest_precision_input.json"

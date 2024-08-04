@@ -2,15 +2,15 @@
 
 PHASE1=pot21_final.ptau
 BUILD_DIR=build/ecdsa
-CIRCUIT_NAME=ecdsa_verify_no_precompute
+CIRCUIT_NAME=ecdsa_verify
 INPUT=data/input.json
 OUTPUT="measurement.json"
 
 if [ -f "$PHASE1" ]; then
     echo "Found Phase 1 ptau file"
 else
-    echo "No Phase 1 ptau file found. Exiting..."
-    exit 1
+    echo "No Phase 1 ptau file found. Downloading..."
+    wget -O pot21_final.ptau https://hermez.s3-eu-west-1.amazonaws.com/powersOfTau28_hez_final_21.ptau
 fi
 
 if [ ! -d "$BUILD_DIR" ]; then

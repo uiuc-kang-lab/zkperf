@@ -7,6 +7,8 @@ NODE_OPTIONS="--max-old-space-size=51200" # Bigger than 18 GB
 SNARKJS=~/".nvm/versions/node/v21.1.0/lib/node_modules/snarkjs/cli.js"
 OUTPUT="mnist_measurement.json"
 INPUT="data/mnist/mnist.json"
+RAPIDSNARK_PROVER="~/rapidsnark/package/bin/prover"
+RAPIDSNARK_VERIFIER="~/rapidsnark/package/bin/verifier"
 
 if [ -f "$PHASE1" ]; then
     echo "Found Phase 1 ptau file"
@@ -25,7 +27,7 @@ if [ ! -f "$BUILD_DIR"/"$OUTPUT" ]; then
     echo "{}" > "$BUILD_DIR"/"$OUTPUT"
 fi
 
-echo "$(jq '. += {"Framework": "circom" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
+echo "$(jq '. += {"Framework": "circom_rapidsnark" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 echo "$(jq '. += {"Circuit": "MNIST" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 echo "$(jq '. += {"Backend": "Groth16" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 echo "$(jq '. += {"Curve": "BN254" }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
@@ -79,7 +81,7 @@ echo "DONE ($((end-start))s)"
 echo "****GENERATING PROOF FOR SAMPLE INPUT****"
 start=`date +%s%N`
 touch /tmp/test
-{ /usr/bin/time -v node $NODE_OPTIONS $SNARKJS groth16 prove "$BUILD_DIR"/"$CIRCUIT_NAME".zkey "$BUILD_DIR"/witness.wtns "$BUILD_DIR"/proof.json "$BUILD_DIR"/public.json; } 2> /tmp/test
+{ /usr/bin/time -v $RAPIDSNARK_PROVER "$BUILD_DIR"/"$CIRCUIT_NAME".zkey "$BUILD_DIR"/witness.wtns "$BUILD_DIR"/proof.json "$BUILD_DIR"/public.json; } 2> /tmp/test
 echo "$(jq --arg tmp $(echo "scale=6; $(cat /tmp/test | grep "Maximum resident set size" | tr -d -c 0-9)/1024" | bc) '.+={"MemoryConsumption": $tmp }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 rm /tmp/test
 end=`date +%s%N`
@@ -92,7 +94,7 @@ echo "DONE ($((end-start))ns)"
 
 echo "****VERIFYING PROOF FOR SAMPLE INPUT****"
 start=`date +%s%N`
-node $NODE_OPTIONS $SNARKJS groth16 verify "$BUILD_DIR"/vkey.json "$BUILD_DIR"/public.json "$BUILD_DIR"/proof.json
+$RAPIDSNARK_VERIFIER "$BUILD_DIR"/vkey.json "$BUILD_DIR"/public.json "$BUILD_DIR"/proof.json
 end=`date +%s%N`
 echo "$(jq --arg tmp $(echo "scale=6; $((end-start))/1000000" | bc) '.+={"VerifierTime": $tmp}' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 echo "DONE ($((end-start))ns)"

@@ -33,22 +33,6 @@ template IsZero() {
     in*out === 0;
 }
 
-// template IsZeroBit() {
-//     signal input in[256];
-//     signal output out;
-
-//     component iszero[257];
-//     var temp = 0;
-
-//     for(var i = 0; i < 256; i++) {
-//         iszero[i] = isZero();
-//         iszero[i].in <== in[i];
-//         temp += iszero[i].out;
-//     }
-//     iszero[256] = isZero();
-//     iszero[256].in <== temp;
-//     out <== (1-in) * iszero.out;
-// }
 
 template IsEqual() {
     signal input in[2];

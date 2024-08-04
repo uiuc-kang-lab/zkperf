@@ -4,7 +4,7 @@ PHASE1=pot22_final.ptau
 BUILD_DIR=build/DLRMSmall
 CIRCUIT_NAME=DLRMSmall
 NODE_OPTIONS="--max-old-space-size=18432" # Bigger than 18 GB
-SNARKJS="/home/ubuntu/.nvm/versions/node/v20.8.1/lib/node_modules/snarkjs/cli.js"
+SNARKJS=~/".nvm/versions/node/v20.8.1/lib/node_modules/snarkjs/cli.js"
 OUTPUT="dlrm_measurement.json"
 INPUT="data/dlrm/dlrm_input.json"
 
