@@ -17,7 +17,7 @@ def main():
   cols = sorted(list(cols))
   times = {"dlrm": [], "mnist": [], "ecdsa": [], "merkle": [], "mnist_no_lookup": []}
 
-  fig=plt.figure(figsize=(4 * 3+1, 2.2 * 2 + .5))
+  fig=plt.figure(figsize=(4 * 3+1, 1.75 * 2 + .5))
 #   fig, axes = plt.subplots(
 #         figsize=(4 * 3, 3.3 * 2), ncols=3, nrows=2,
 #         sharex=False
