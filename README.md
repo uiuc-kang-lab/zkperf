@@ -50,7 +50,7 @@ sudo tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
 echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
 ```
 
-### plonky2/halo2 (Rust)
+### plonky2/halo2
 
 Install `rustup`:
 
