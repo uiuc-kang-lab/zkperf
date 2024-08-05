@@ -2,12 +2,8 @@
 
 MAIN_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )/../
 
-sudo yum update
-sudo yum install make glibc-devel gcc patch checkinstall openssl-dev perl-core
-
-curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
-source ~/.bashrc
-nvm install node
+sudo apt-get update
+sudo apt-get install build-essential cmake libgmp-dev libsodium-dev nasm curl m4 npm
 
 curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh
 source "$HOME/.cargo/env"
@@ -22,7 +18,6 @@ pip install tensorflow tflite msgpack
 echo 'alias python="python3"' >> ~/.bashrc
 source ~/.bashrc
 
-# circom
 cd $MAIN_DIR/circom
 git clone https://github.com/iden3/circom.git
 cd circom
@@ -38,7 +33,7 @@ cd ../zkml
 
 # halo2
 cd $MAIN_DIR/halo2
-cd ../ecdsa
+cd ecdsa
 ./configure.sh
 cd ../merkle_tree
 ./configure.sh
@@ -53,7 +48,7 @@ cd ../ezkl
 cd $MAIN_DIR/plonky2/ecdsa/
 rustup override set nightly
 cargo build --release
-cd ../merkle_tree/
+cd ../merkle_tree/keccak/
 rustup override set nightly
 cargo build --release
 cd ../ml
