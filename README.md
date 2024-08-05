@@ -8,6 +8,8 @@ MNIST Convolutional Neural Network, and Deep Learning Recommendation Model
 
 For Ubuntu:
 
+From `$HOME` or the intended rapidsnark install location, run `circom/setup.sh`
+
 ```
 ./scripts/install.sh
 source "$HOME/.cargo/env"
