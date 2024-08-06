@@ -2,8 +2,9 @@
 
 MAIN_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )/../
 
+# circom
 cd $MAIN_DIR/circom
-cd ../ecdsa
+cd ecdsa
 ./configure.sh
 cd ../merkle_tree
 ./configure.sh
@@ -16,11 +17,11 @@ cd ecdsa
 ./configure.sh
 cd ../merkle_tree
 ./configure.sh
-mkdir params
+mkdir -p params
 cd ../zkml
 ./configure.sh
-mkdir params_kzg
-mkdir params_ipa
+mkdir -p params_kzg
+mkdir -p params_ipa
 cd ../ezkl
 ./configure.sh
 

@@ -10,8 +10,3 @@ wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
 sudo tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
 echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
 
-curl -O https://bootstrap.pypa.io/get-pip.py
-python3 get-pip.py --user
-pip install tensorflow tflite msgpack
-echo 'alias python="python3"' >> ~/.bashrc
-source ~/.bashrc

@@ -59,16 +59,6 @@ curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh
 source "$HOME/.cargo/env"
 ```
 
-Install ML circuit utilities:
-
-```
-curl -O https://bootstrap.pypa.io/get-pip.py
-python3 get-pip.py --user
-pip install tensorflow tflite msgpack
-echo 'alias python="python3"' >> ~/.bashrc
-source ~/.bashrc
-```
-
 ## Setup
 
 This performs additional configuration and building for some circuits:
