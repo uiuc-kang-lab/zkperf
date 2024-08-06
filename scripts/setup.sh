@@ -4,12 +4,16 @@ MAIN_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )/..
 
 # circom
 cd $MAIN_DIR/circom
-cd ecdsa
-./configure.sh
+git clone https://github.com/iden3/circom.git
+cd circom
+cargo build --release
+cargo install --path circom
+cd ../ecdsa
+#./configure.sh
 cd ../merkle_tree
-./configure.sh
+#./configure.sh
 cd ../zkml
-./configure.sh
+#./configure.sh
 
 # halo2
 cd $MAIN_DIR/halo2
