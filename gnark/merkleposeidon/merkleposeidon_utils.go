@@ -24,17 +24,12 @@ func PoseidonMerkleCircuitGen(request string) PoseidonMerkleTree {
 	hashed_leaf, _ := nonzkposeidon.Hash([]*big.Int{big.NewInt(12)})
 	path := make([]*big.Int, 10)
 	path_x := make([]frontend.Variable, 10)
-	// path_object := make([]frontend.Variable, 10)
 	path[0], _ = nonzkposeidon.Hash([]*big.Int{big.NewInt(path_int[0])})
 	path_x[0] = frontend.Variable(path[0])
-	// path_object[0] = make([]uints.U8, len(path[0]))
 	buf, _ := nonzkposeidon.Hash([]*big.Int{hashed_leaf, path[0]})
 
 	for i := 1; i < 10; i++ {
 		path[i], _ = nonzkposeidon.Hash([]*big.Int{big.NewInt(path_int[i])})
-		// path_object[i] = make([]uints.U8, len(path[i]))
-		// hashfunc := nonzksha3.NewLegacyKeccak256()
-		// hashfunc.Write(Concat_byte(buf, hashElem(path_int[i])))
 		path_x[i] = frontend.Variable(path[i])
 		buf, _ = nonzkposeidon.Hash([]*big.Int{buf, path[i]})
 	}
@@ -49,7 +44,6 @@ func PoseidonMerkleCircuitGen(request string) PoseidonMerkleTree {
 		Path: path_x,
 		Root: frontend.Variable(digest),
 	}
-	// test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
 	var req PoseidonMerkleTree
 	if request == "circuit" {
 		req = circuit

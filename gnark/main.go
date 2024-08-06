@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// ProverResultFile defines the structure for storing prover results.
 type ProverResultFile struct {
 	Framework  string
 	Circuit    string
