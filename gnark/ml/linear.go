@@ -19,7 +19,6 @@ func Conv2D(api frontend.API, image [][][]frontend.Variable, kernel [][][][]fron
 		Output: [(H+2P-H')/stride+1][(W+2P-W')/stride+1][N]
 		DivLoookup: Yes
 	*/
-
 	var padlen int
 	if padding == 0 {
 		padlen = (len(kernel[0][0]) - 1) / 2
@@ -101,8 +100,6 @@ func AvgPool2D(api frontend.API, Input [][][]frontend.Variable, params []int, Gl
 				DivFactor := frontend.Variable(df_int)
 				// Division
 				output[i][j][k] = DownScale(api, output[i][j][k], DivFactor, logdivfactor)
-				// Downscale
-				// output[i][j][k] = DownScale(api, output[i][j][k], Global_sf, N)
 			}
 		}
 	}
@@ -197,7 +194,6 @@ func DownScale(api frontend.API, Dividend frontend.Variable, ScaleFactor fronten
 	divResult, _ := api.Compiler().NewHint(DivHintNew, 3, Dividend, ScaleFactor)
 	quotient := divResult[0]
 	remainder := divResult[1]
-
 	// (2 * a + b) = (2 * b) * q + r
 	lhs := api.Mul(frontend.Variable(2), Dividend)
 	lhs = api.Add(lhs, ScaleFactor)
@@ -218,7 +214,6 @@ func DivHintNew(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 		inputs[0] = new(big.Int).Sub(modulus, inputs[0])
 		inputs[0] = inputs[0].Neg(inputs[0])
 	}
-
 	// q = (2 * a + b) / (2 * b)
 	numerator := new(big.Int).Mul(big.NewInt(2), inputs[0])
 	numerator = new(big.Int).Add(numerator, inputs[1])

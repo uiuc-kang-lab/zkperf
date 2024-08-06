@@ -1,4 +1,3 @@
-// oggn
 package gnarkml
 
 import (
@@ -24,7 +23,6 @@ func MNIST_ZK(api frontend.API, Image [][][]frontend.Variable, reluoff bool, num
 	var modelConfig Cfg
 	err = json.Unmarshal(content, &modelConfig)
 	check_err(err)
-
 	N := int(math.Log2(float64(modelConfig.Global_sf)))
 	fmt.Println("N: ", N)
 	Global_sf := frontend.Variable(modelConfig.Global_sf)

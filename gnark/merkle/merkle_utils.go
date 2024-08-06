@@ -47,7 +47,6 @@ func MerkleCircuitGen(request string) MerkleTreeCircuit {
 		Path: path,
 		Root: digest,
 	}
-	// test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
 	var req MerkleTreeCircuit
 	if request == "circuit" {
 		req = circuit

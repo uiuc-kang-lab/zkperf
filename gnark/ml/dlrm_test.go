@@ -1,5 +1,7 @@
 package gnarkml
 
+// remove this file while moving the code to a new cleaner repo
+
 import (
 	"fmt"
 	"testing"

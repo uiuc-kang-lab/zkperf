@@ -1,5 +1,3 @@
-# TODO: make setup one time
-
 go build -o gmc
 # Merkle
 ./gmc -circuit MerkleTree -backend Groth16 -step Setup -curve BN254 -outputPath merkle_groth16 

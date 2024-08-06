@@ -8,6 +8,8 @@ import (
 	"github.com/consensys/gnark/std/multicommit"
 )
 
+// Remove this file moving to a new cleaner repo
+
 // Try Freivalds
 func FullyConnectedWithFreivalds(api frontend.API, input [][]frontend.Variable, weight [][]frontend.Variable) [][]frontend.Variable {
 	/*
