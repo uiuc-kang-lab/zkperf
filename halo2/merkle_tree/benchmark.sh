@@ -29,7 +29,7 @@ touch /tmp/test
 echo "$(jq --arg tmp $(echo "scale=6; $(cat /tmp/test | grep "Maximum resident set size" | tr -d -c 0-9)/1024" | bc) '.+={"MemoryConsumption": $tmp }' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 rm /tmp/test
 end=`date +%s%N`
-echo "$(jq --arg tmp $(stat -c %s "$BUILD_DIR"/data/"$CIRCUIT".snark) '.+={"ProofSize": $tmp}' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
+echo "$(jq --arg tmp $(stat -c %s "$BUILD_DIR"/data/"$CIRCUIT".proof) '.+={"ProofSize": $tmp}' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 echo "$(jq --arg tmp $(echo "scale=6; $((end-start))/1000000000" | bc) '.+={"ProverTime": $tmp}' "$BUILD_DIR"/"$OUTPUT")" > "$BUILD_DIR"/"$OUTPUT"
 echo "Proof Size: $(stat -c %s "$BUILD_DIR"/data/"$CIRCUIT".proof)bytes"
 echo "DONE ($((end-start))ns)"

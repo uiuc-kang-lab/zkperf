@@ -17,6 +17,10 @@ axiom-eth = { git = "https://github.com/span14/axiom-eth.git", branch="community
 clap="4.0.13"
 env_logger = "=0.10"
 snark-verifier-sdk = { git = "https://github.com/span14/snark-verifier.git", branch="temp", default-features = false, features = ["loader_halo2"] }
+parity-scale-codec-derive = "=3.6.5"
+scale-info-derive = "=2.10.0"
+bumpalo = "=3.14.0"
+ahash = "=0.8.6"
 
 [features]
 print-trace = ["halo2-base/profile"]

@@ -16,6 +16,7 @@ cd ecdsa
 ./configure.sh
 cd ../merkle_tree
 ./configure.sh
+mkdir params
 cd ../zkml
 ./configure.sh
 mkdir params_kzg
