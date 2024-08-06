@@ -11,7 +11,6 @@ func Transpose(api frontend.API, input [][]frontend.Variable) [][]frontend.Varia
 		Input: [H][C]
 		Output: [C][H]
 	*/
-	// fmt.Println("Output Dim: ", len(input[0]), len(input))
 	output := make([][]frontend.Variable, len(input[0]))
 	for i := 0; i < len(input[0]); i++ {
 		output[i] = make([]frontend.Variable, len(input))
@@ -23,9 +22,7 @@ func Transpose(api frontend.API, input [][]frontend.Variable) [][]frontend.Varia
 }
 
 func Transpose3D_1(api frontend.API, input [][][]frontend.Variable, opshape []int) [][][]frontend.Variable {
-
 	// [0,1,2] -> [0,2,1]
-	// fmt.Println("Output Dim: ", opshape[0], opshape[2], opshape[1])
 	output := make([][][]frontend.Variable, opshape[0])
 	for i := 0; i < opshape[0]; i++ {
 		output[i] = make([][]frontend.Variable, opshape[1])
@@ -40,9 +37,7 @@ func Transpose3D_1(api frontend.API, input [][][]frontend.Variable, opshape []in
 }
 
 func Transpose3D_2(api frontend.API, input [][][]frontend.Variable, opshape []int) [][][]frontend.Variable {
-
 	// [0,1,2] -> [1,2,0]
-	// fmt.Println("Output Dim: ", opshape[1], opshape[2], opshape[0])
 	output := make([][][]frontend.Variable, opshape[0])
 	for i := 0; i < opshape[0]; i++ {
 		output[i] = make([][]frontend.Variable, opshape[1])
@@ -63,7 +58,6 @@ func Concatenate(api frontend.API, input1 [][]frontend.Variable, input2 [][]fron
 		Input2: [H][C2]
 		Output: [H][C1+C2]
 	*/
-	// fmt.Println("Output Dim: ", len(input1), len(input1[0])+len(input2[0]))
 	output := make([][]frontend.Variable, len(input1))
 	for i := 0; i < len(input1); i++ {
 		output[i] = make([]frontend.Variable, len(input1[0])+len(input2[0]))
@@ -78,7 +72,6 @@ func Concatenate(api frontend.API, input1 [][]frontend.Variable, input2 [][]fron
 }
 
 func Reshape1Dto2D(api frontend.API, input [][]frontend.Variable, outputshape []int) [][]frontend.Variable {
-
 	output := make([][]frontend.Variable, outputshape[0])
 	index := 0
 	for i := 0; i < outputshape[0]; i++ {
@@ -92,7 +85,6 @@ func Reshape1Dto2D(api frontend.API, input [][]frontend.Variable, outputshape []
 }
 
 func Reshape2Dto1D(api frontend.API, input [][]frontend.Variable, outputshape []int) [][]frontend.Variable {
-	// fmt.Println("Output Dim: ", outputshape[0], outputshape[1])
 	output := make([][]frontend.Variable, outputshape[0])
 	index := 0
 	for i := 0; i < len(input); i++ {
@@ -112,7 +104,6 @@ func Reshape3Dto2D(api frontend.API, input [][][]frontend.Variable, outputshape 
 		Input: [C][H][W]
 		Output: [C*H][W]
 	*/
-	// fmt.Println("Output Dim: ", len(input)*len(input[0]), len(input[0][0]))
 	output := make([][]frontend.Variable, len(input)*len(input[0]))
 	for i := 0; i < len(input); i++ {
 		for j := 0; j < len(input[0]); j++ {
@@ -133,7 +124,6 @@ func Reshape2Dto3D(api frontend.API, input [][]frontend.Variable, outputshape []
 		H = outputshape[1]
 		W = outputshape[2]
 	*/
-	// fmt.Println("Output Dim: ", len(input), outputshape[1], outputshape[2])
 	output := make([][][]frontend.Variable, len(input))
 	for i := 0; i < len(input); i++ {
 		output[i] = make([][]frontend.Variable, outputshape[1])
